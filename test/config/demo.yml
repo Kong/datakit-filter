@@ -1,0 +1,32 @@
+
+_format_version: "1.1"
+
+services:
+- name: demo
+  url: http://httpbin.org
+# url: http://host.docker.internal:6502
+  routes:
+  - name: my-route
+    paths:
+    - /
+    strip_path: false
+    filter_chains:
+    - filters:
+      - name: datakit_filter
+        config:
+          nodes:
+          - type: call
+            name: first
+            url: http://127.0.0.1:6502/json
+          - type: call
+            name: second
+            url: http://127.0.0.1:8008/object
+          - type: template
+            inputs:
+            - first
+            - second
+            template: |
+               {
+                  "foo": {{ first.field }},
+                  "bar": {{ second.field }}
+               }
