@@ -1,0 +1,21 @@
+[package]
+name = "datakit-filter"
+version = "0.1.0"
+authors = ["Hisham Muhammad <hisham@gobolinux.org>"]
+license = "Apache-2.0"
+edition = "2021"
+
+[lib]
+path = "src/filter.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+proxy-wasm = "0.2"
+log = "0.4"
+serde-json-wasm = "0.5.0"
+serde_json = "*"
+serde = { version = "*", features = ["derive"] }
+#datakit = { workspace = true }
+lazy_static = "*"
+"url" = "2.5.0"
+handlebars = "5.1.0"
