@@ -1,0 +1,6 @@
+[workspace]
+members = ["datakit-filter"]
+resolver = "2"
+
+#[workspace.dependencies]
+#datakit = { path = "datakit" }
