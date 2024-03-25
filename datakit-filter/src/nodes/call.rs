@@ -62,7 +62,12 @@ pub struct Call {
 }
 
 impl Call {
-    fn dispatch_call(&self, ctx: &dyn HttpContext) -> Result<u32, Status> {
+    fn dispatch_call(
+        &self,
+        ctx: &dyn HttpContext,
+        body: Option<&Payload>,
+        headers: Option<&Payload>,
+    ) -> Result<u32, Status> {
         log::info!(
             "call: {} - url: {}",
             self.config.connections.name,
@@ -82,11 +87,14 @@ impl Call {
             }
         }?;
 
-        let headers = vec![
-            (":method", self.config.method.as_str()),
-            (":path", call_url.path()),
-        ];
-        let body = None;
+        let mut headers_vec: Vec<(&str, &str)> =
+            headers.map_or_else(Vec::new, |p| p.to_headers_vec());
+        headers_vec.push((":method", self.config.method.as_str()));
+        headers_vec.push((":path", call_url.path()));
+
+        let body_vec: Option<Vec<u8>> = body.map(|p| p.to_bytes());
+        let body_slice: Option<Box<[u8]>> = body_vec.map(Vec::into_boxed_slice);
+
         let trailers = vec![];
         let timeout = Duration::from_secs(self.config.timeout.into());
 
@@ -94,7 +102,13 @@ impl Call {
             Some(port) => format!("{}:{}", host, port),
             None => host.to_owned(),
         };
-        ctx.dispatch_http_call(&sch_host_port, headers, body, trailers, timeout)
+        ctx.dispatch_http_call(
+            &sch_host_port,
+            headers_vec,
+            body_slice.as_deref(),
+            trailers,
+            timeout,
+        )
     }
 }
 
@@ -127,10 +141,10 @@ impl Node for Call {
         &self.config.connections.name
     }
 
-    fn run(&mut self, ctx: &dyn HttpContext, _inputs: Vec<&Payload>) -> State {
+    fn run(&mut self, ctx: &dyn HttpContext, inputs: Vec<&Payload>) -> State {
         log::info!("Call: on http request headers");
 
-        match self.dispatch_call(ctx) {
+        match self.dispatch_call(ctx, inputs.first().copied(), inputs.get(1).copied()) {
             Ok(id) => {
                 log::info!("call: dispatch call id: {:?}", id);
                 self.token_id = Some(id);

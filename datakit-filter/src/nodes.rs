@@ -132,18 +132,18 @@ impl<'a> Deserialize<'a> for Box<dyn NodeConfig> {
                     match key.as_str() {
                         "type" => {
                             if let Ok(serde_json::Value::String(value)) = map.next_value() {
-                                typ = Some(value.clone());
+                                typ = Some(value);
                             }
                         }
                         "name" => {
                             if let Ok(serde_json::Value::String(value)) = map.next_value() {
-                                connections.name = value.clone();
+                                connections.name = value;
                                 has_name = true;
                             }
                         }
                         "input" => {
                             if let Ok(serde_json::Value::String(value)) = map.next_value() {
-                                connections.inputs.push(value.clone());
+                                connections.inputs.push(value);
                             }
                         }
                         "inputs" => {
@@ -155,7 +155,7 @@ impl<'a> Deserialize<'a> for Box<dyn NodeConfig> {
                         }
                         "output" => {
                             if let Ok(serde_json::Value::String(value)) = map.next_value() {
-                                connections.outputs.push(value.clone());
+                                connections.outputs.push(value);
                             }
                         }
                         "outputs" => {

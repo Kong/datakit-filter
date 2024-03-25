@@ -4,7 +4,7 @@ use crate::dependency_graph::DependencyGraph;
 
 #[derive(Debug, PartialEq)]
 pub enum Payload {
-    Raw(String),
+    Raw(Vec<u8>),
     Json(serde_json::Value),
 }
 
@@ -14,17 +14,41 @@ impl Payload {
             Some(ct) => {
                 if ct == "application/json" {
                     match serde_json::from_slice(&bytes) {
-                        Ok::<serde_json::Value, _>(v) => return Some(Payload::Json(v)),
+                        Ok::<serde_json::Value, _>(v) => Some(Payload::Json(v)),
                         Err::<_, serde_json::Error>(e) => {
                             log::error!("error decoding json: {}", e);
-                            return None;
+
+                            None
                         }
                     }
+                } else {
+                    Some(Payload::Raw(bytes))
                 }
-                None
             }
             _ => None,
         }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match &self {
+            Payload::Json(value) => {
+                match serde_json::to_string(value) {
+                    Ok(s) => s.into_bytes(),
+                    Err::<_, serde_json::Error>(e) => {
+                        log::error!("error decoding json: {}", e);
+                        // FIXME should we return Result instead?
+                        vec![]
+                    }
+                }
+            }
+            Payload::Raw(s) => s.clone(), // it would be nice to be able to avoid this copy
+        }
+    }
+
+    pub fn to_headers_vec(&self) -> Vec<(&str, &str)> {
+        // TODO
+        log::debug!("NYI: converting payload into headers vector");
+        vec![]
     }
 }
 

@@ -129,13 +129,13 @@ impl DataKitFilter {
                     let node: &mut Box<dyn Node> = nodes
                         .get_mut(name)
                         .expect("self.nodes doesn't match self.node_names");
-                    if let Some(inputs) = self.data.get_inputs_for(&name, None) {
+                    if let Some(inputs) = self.data.get_inputs_for(name, None) {
                         any_ran = true;
                         let state = node.run(self, inputs);
                         if let State::Waiting(_) = state {
                             ret = Action::Pause;
                         }
-                        self.data.set(&name, state);
+                        self.data.set(name, state);
                     }
                 }
                 if !any_ran {
