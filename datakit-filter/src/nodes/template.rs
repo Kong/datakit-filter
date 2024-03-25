@@ -45,7 +45,7 @@ pub struct Template {
 }
 
 impl Node for Template {
-    fn new(config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
+    fn new_box(config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
         match config.as_any().downcast_ref::<TemplateConfig>() {
             Some(cc) => Box::new(Template { config: cc.clone() }),
             None => panic!("incompatible NodeConfig"),

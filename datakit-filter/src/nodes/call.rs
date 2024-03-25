@@ -127,7 +127,7 @@ fn get_key<T: for<'de> serde::Deserialize<'de>>(
 }
 
 impl Node for Call {
-    fn new(config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
+    fn new_box(config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
         match config.as_any().downcast_ref::<CallConfig>() {
             Some(cc) => Box::new(Call {
                 config: cc.clone(),

@@ -93,10 +93,10 @@ impl RootContext for DataKitFilterRootContext {
         if let Some(config) = &self.config {
             let mut nodes = NodeMap::new();
             let mut node_names = Vec::new();
-            build_node_map(&mut nodes, &mut node_names, &config);
+            build_node_map(&mut nodes, &mut node_names, config);
 
             Some(Box::new(DataKitFilter {
-                node_names: node_names,
+                node_names,
                 nodes: Some(nodes),
                 // FIXME: is it possible to do lifetime annotations
                 // to avoid cloning graph every time?
@@ -190,8 +190,8 @@ impl HttpContext for DataKitFilter {
 }
 
 proxy_wasm::main! {{
-    nodes::register_node("template", nodes::template::TemplateConfig::from_map, nodes::template::Template::new);
-    nodes::register_node("call", nodes::call::CallConfig::from_map, nodes::call::Call::new);
+    nodes::register_node("template", nodes::template::TemplateConfig::from_map, nodes::template::Template::new_box);
+    nodes::register_node("call", nodes::call::CallConfig::from_map, nodes::call::Call::new_box);
 
     proxy_wasm::set_log_level(LogLevel::Debug);
     proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> {

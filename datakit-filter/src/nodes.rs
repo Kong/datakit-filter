@@ -14,7 +14,8 @@ pub mod call;
 pub mod template;
 
 pub trait Node {
-    fn new(config: &Box<dyn NodeConfig>) -> Box<dyn Node>
+    #[allow(clippy::borrowed_box)]
+    fn new_box(config: &Box<dyn NodeConfig>) -> Box<dyn Node>
     where
         Self: Sized;
 
