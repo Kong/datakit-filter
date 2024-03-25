@@ -5,6 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::any::Any;
 use std::sync::{Mutex, OnceLock};
 
 use crate::data::{Payload, State, State::*};
@@ -13,6 +14,10 @@ pub mod call;
 pub mod template;
 
 pub trait Node {
+    fn new(config: &Box<dyn NodeConfig>) -> Box<dyn Node>
+    where
+        Self: Sized;
+
     fn run(&mut self, _ctx: &dyn HttpContext, _inputs: Vec<&Payload>) -> State {
         Done(None)
     }
@@ -25,17 +30,9 @@ pub trait Node {
         false
     }
 
-    fn get_connections(&self) -> &Connections;
-
-    fn get_name(&self) -> &str {
-        &self.get_connections().name
-    }
-
     fn clone_dyn(&self) -> Box<dyn Node>;
 
-    fn from_map(bt: BTreeMap<String, Value>, connections: Connections) -> Box<dyn Node>
-    where
-        Self: Sized;
+    fn get_name(&self) -> &str;
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -59,32 +56,65 @@ impl Connections {
     }
 }
 
-type NodeFromMapFn = fn(BTreeMap<String, Value>, Connections) -> Box<dyn Node>;
+pub trait NodeConfig {
+    fn as_any(&self) -> &dyn Any;
 
-type NodeTypeMap = BTreeMap<String, NodeFromMapFn>;
+    fn get_node_type(&self) -> &'static str;
+
+    fn get_connections(&self) -> &Connections;
+
+    fn clone_dyn(&self) -> Box<dyn NodeConfig>;
+
+    fn from_map(bt: BTreeMap<String, Value>, connections: Connections) -> Box<dyn NodeConfig>
+    where
+        Self: Sized;
+}
+
+type NodeConfigFromMapFn = fn(BTreeMap<String, Value>, Connections) -> Box<dyn NodeConfig>;
+type NodeNewFn = fn(&Box<dyn NodeConfig>) -> Box<dyn Node>;
+
+struct NodeFactory {
+    from_map: NodeConfigFromMapFn,
+    new: NodeNewFn,
+}
+
+type NodeTypeMap = BTreeMap<String, NodeFactory>;
 
 fn node_types() -> &'static Mutex<NodeTypeMap> {
     static NODE_TYPES: OnceLock<Mutex<NodeTypeMap>> = OnceLock::new();
     NODE_TYPES.get_or_init(|| Mutex::new(BTreeMap::new()))
 }
 
-pub fn register_node(name: &str, f: NodeFromMapFn) -> bool {
-    node_types().lock().unwrap().insert(String::from(name), f);
+pub fn register_node(name: &str, from_map: NodeConfigFromMapFn, new: NodeNewFn) -> bool {
+    node_types().lock().unwrap().insert(String::from(name), NodeFactory {
+        from_map,
+        new,
+    });
     true
 }
 
-impl<'a> Deserialize<'a> for Box<dyn Node> {
+#[allow(clippy::borrowed_box)]
+pub fn new_node(config: &Box<dyn NodeConfig>) -> Result<Box<dyn Node>, String> {
+    let node_type = config.get_node_type();
+    if let Some(nf) = node_types().lock().unwrap().get(node_type) {
+        Ok((nf.new)(config))
+    } else {
+        Err(format!("no such node type: {}", node_type))
+    }
+}
+
+impl<'a> Deserialize<'a> for Box<dyn NodeConfig> {
     fn deserialize<D>(de: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'a>,
     {
-        struct DynNodeVisitor;
+        struct DynNodeConfigVisitor;
 
-        impl<'de> Visitor<'de> for DynNodeVisitor {
-            type Value = Box<dyn Node>;
+        impl<'de> Visitor<'de> for DynNodeConfigVisitor {
+            type Value = Box<dyn NodeConfig>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a DataKit node")
+                formatter.write_str("a DataKit node config")
             }
 
             fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
@@ -139,14 +169,16 @@ impl<'a> Deserialize<'a> for Box<dyn Node> {
                         }
                     }
                 }
-                
+
                 if !has_name {
                     connections.name = format!("{:p}", &connections);
                 }
 
                 if let Some(t) = typ {
-                    if let Some(from_map_fn) = node_types().lock().unwrap().get(&t) {
-                        Ok(from_map_fn(bt, connections))
+                    if let Some(nf) = node_types().lock().unwrap().get(&t) {
+                        let v: Self::Value = (nf.from_map)(bt, connections);
+
+                        Ok(v)
                     } else {
                         Err(Error::unknown_variant(&t, &[]))
                     }
@@ -156,11 +188,17 @@ impl<'a> Deserialize<'a> for Box<dyn Node> {
             }
         }
 
-        de.deserialize_map(DynNodeVisitor)
+        de.deserialize_map(DynNodeConfigVisitor)
     }
 }
 
 impl Clone for Box<dyn Node> {
+    fn clone(&self) -> Self {
+        self.clone_dyn()
+    }
+}
+
+impl Clone for Box<dyn NodeConfig> {
     fn clone(&self) -> Self {
         self.clone_dyn()
     }

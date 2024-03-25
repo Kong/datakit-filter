@@ -4,14 +4,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::time::Duration;
+use std::any::Any;
 use url::Url;
 
 use crate::data::{Payload, State, State::*};
 use crate::nodes::Connections;
-use crate::nodes::Node;
+use crate::nodes::{Node, NodeConfig};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Call {
+pub struct CallConfig {
     connections: Connections,
 
     // FIXME: the optional ones should be Option,
@@ -21,17 +22,50 @@ pub struct Call {
     url: String,
     method: String,
     timeout: u32,
+}
 
-    // internal state:
-    #[serde(skip_serializing)]
+impl NodeConfig for CallConfig {
+    fn get_connections(&self) -> &Connections {
+        &self.connections
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_dyn(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+
+    fn get_node_type(&self) -> &'static str {
+        "call"
+    }
+
+    fn from_map(bt: BTreeMap<String, Value>, connections: Connections) -> Box<dyn NodeConfig>
+    where
+        Self: Sized,
+    {
+        Box::new(CallConfig {
+            connections,
+            url: get_key(&bt, "url", String::from("")),
+            method: get_key(&bt, "method", String::from("GET")),
+            timeout: get_key(&bt, "timeout", 60),
+        })
+    }
+}
+
+#[derive(Clone)]
+pub struct Call {
+    config: CallConfig,
+
     token_id: Option<u32>,
 }
 
 impl Call {
     fn dispatch_call(&self, ctx: &dyn HttpContext) -> Result<u32, Status> {
-        log::info!("call: {} - url: {}", self.connections.name, self.url);
+        log::info!("call: {} - url: {}", self.config.connections.name, self.config.url);
 
-        let call_url = Url::parse(self.url.as_str()).map_err(|r| {
+        let call_url = Url::parse(self.config.url.as_str()).map_err(|r| {
             log::error!("call: failed parsing URL from 'url' field: {}", r);
             Status::BadArgument
         })?;
@@ -45,12 +79,12 @@ impl Call {
         }?;
 
         let headers = vec![
-            (":method", self.method.as_str()),
+            (":method", self.config.method.as_str()),
             (":path", call_url.path()),
         ];
         let body = None;
         let trailers = vec![];
-        let timeout = Duration::from_secs(self.timeout.into());
+        let timeout = Duration::from_secs(self.config.timeout.into());
 
         let sch_host_port = match call_url.port() {
             Some(port) => format!("{}:{}", host, port),
@@ -75,6 +109,24 @@ fn get_key<T: for<'de> serde::Deserialize<'de>>(
 }
 
 impl Node for Call {
+    fn new(config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
+        match config.as_any().downcast_ref::<CallConfig>() {
+            Some(cc) => Box::new(Call {
+                config: cc.clone(),
+                token_id: None,
+            }),
+            None => panic!("incompatible NodeConfig"),
+        }
+    }
+
+    fn clone_dyn(&self) -> Box<dyn Node> {
+        Box::new(self.clone())
+    }
+
+    fn get_name(&self) -> &str {
+        &self.config.connections.name
+    }
+
     fn run(
         &mut self,
         ctx: &dyn HttpContext,
@@ -104,38 +156,17 @@ impl Node for Call {
     ) -> State {
         log::info!("call: on http call response");
 
-        let r = 
+        let r =
             if let Some(body) = ctx.get_http_call_response_body(0, body_size) {
                 Payload::from_bytes(body, ctx.get_http_call_response_header("Content-Type"))
             } else {
                 None
             };
-        
+
         Done(r)
     }
 
     fn is_waiting_on(&self, token_id: u32) -> bool {
         self.token_id == Some(token_id)
-    }
-
-    fn get_connections(&self) -> &Connections {
-        &self.connections
-    }
-
-    fn clone_dyn(&self) -> Box<dyn Node> {
-        Box::new(self.clone())
-    }
-
-    fn from_map(bt: BTreeMap<String, Value>, connections: Connections) -> Box<dyn Node>
-    where
-        Self: Sized,
-    {
-        Box::new(Call {
-            connections,
-            url: get_key(&bt, "url", String::from("")),
-            method: get_key(&bt, "method", String::from("GET")),
-            timeout: get_key(&bt, "timeout", 60),
-            token_id: None,
-        })
     }
 }

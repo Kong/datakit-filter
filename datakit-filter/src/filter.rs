@@ -2,6 +2,7 @@ use log::info;
 use log::warn;
 use proxy_wasm::{traits::*, types::*};
 use serde_json_wasm::de;
+use std::collections::BTreeMap;
 use std::mem;
 
 mod config;
@@ -12,11 +13,13 @@ mod nodes;
 use crate::config::Config;
 use crate::data::{Data, State};
 use crate::dependency_graph::DependencyGraph;
-use crate::nodes::Node;
+use crate::nodes::{Node, NodeConfig};
 
 // -----------------------------------------------------------------------------
 // Root Context
 // -----------------------------------------------------------------------------
+
+type NodeMap = BTreeMap<String, Box<dyn Node>>;
 
 struct DataKitFilterRootContext {
     config: Option<Config>,
@@ -26,13 +29,28 @@ struct DataKitFilterRootContext {
 impl Context for DataKitFilterRootContext {}
 
 fn populate_dependency_graph(graph: &mut DependencyGraph, config: &Config) {
-    for node in config.each_node() {
-        let conns = node.get_connections();
+    for node_config in config.each_node_config() {
+        let conns = node_config.get_connections();
         for input in conns.each_input() {
             graph.add(input, conns.get_name());
         }
         for output in conns.each_output() {
             graph.add(conns.get_name(), output);
+        }
+    }
+}
+
+fn build_node_map(nodes: &mut NodeMap, node_names: &mut Vec<String>, config: &Config) {
+    for node_config in config.each_node_config() {
+        let name = node_config.get_connections().get_name();
+        match nodes::new_node(node_config) {
+            Ok(node) => {
+                nodes.insert(name.to_string(), node.clone());
+                node_names.push(name.to_string());
+            },
+            Err(err) => {
+                log::error!("{}", err);
+            }
         }
     }
 }
@@ -43,7 +61,8 @@ impl RootContext for DataKitFilterRootContext {
             match de::from_slice::<Config>(&config_bytes) {
                 Ok(config) => {
                     populate_dependency_graph(&mut self.graph, &config);
-                    self.config = Some(config);
+
+                    self.config = Some(config.clone());
 
                     true
                 }
@@ -70,13 +89,17 @@ impl RootContext for DataKitFilterRootContext {
 
     fn create_http_context(&self, context_id: u32) -> Option<Box<dyn HttpContext>> {
         info!("Context id: {}", context_id);
+
         if let Some(config) = &self.config {
+            let mut nodes = NodeMap::new();
+            let mut node_names = Vec::new();
+            build_node_map(&mut nodes, &mut node_names, &config);
+
             Some(Box::new(DataKitFilter {
-                // FIXME: do we need to clone the config every time?
-                // we should probably have a separate per-request data structure
-                // for the nodes and keep Config as a read-only struct,
-                // but right now Config is just the "holder of Nodes"
-                config: Some(config.clone()),
+                node_names: node_names,
+                nodes: Some(nodes),
+                // FIXME: is it possible to do lifetime annotations
+                // to avoid cloning graph every time?
                 data: Data::new(self.graph.clone()),
             }))
         } else {
@@ -91,6 +114,8 @@ impl RootContext for DataKitFilterRootContext {
 
 pub struct DataKitFilter {
     config: Option<Config>,
+    node_names: Vec<String>,
+    nodes: Option<NodeMap>,
     data: Data,
 }
 
@@ -98,25 +123,26 @@ impl DataKitFilter {
     fn run_nodes(&mut self) -> Action {
         let mut ret = Action::Continue;
 
-        if let Some(mut config) = mem::take(&mut self.config) {
+        if let Some(mut nodes) = mem::take(&mut self.nodes) {
             loop {
                 let mut any_ran = false;
-                for node in config.iter_mut() {
-                    if let Some(inputs) = self.data.get_inputs_for(node.get_name(), None) {
+                for name in &self.node_names {
+                    let node: &mut Box<dyn Node> = nodes.get_mut(name).expect("self.nodes doesn't match self.node_names");
+                    if let Some(inputs) = self.data.get_inputs_for(&name, None) {
                         any_ran = true;
                         let state = node.run(self, inputs);
                         if let State::Waiting(_) = state {
                             ret = Action::Pause;
                         }
-                        self.data.set(node.get_name(), state);
+                        self.data.set(&name, state);
                     }
                 }
                 if !any_ran {
                     break;
                 }
             }
-            
-            let _ = mem::replace(&mut self.config, Some(config));
+
+            let _ = mem::replace(&mut self.nodes, Some(nodes));
         }
 
         ret
@@ -133,15 +159,16 @@ impl Context for DataKitFilter {
     ) {
         log::info!("DataKitFilter: on http call response, id = {:?}", token_id);
 
-        if let Some(mut config) = mem::take(&mut self.config) {
-            for node in config.iter_mut() {
+        if let Some(mut nodes) = mem::take(&mut self.nodes) {
+            for name in &self.node_names {
+                let node: &mut Box<dyn Node> = nodes.get_mut(name).expect("self.nodes doesn't match self.node_names");
                 if let Some(inputs) = self.data.get_inputs_for(node.get_name(), Some(token_id)) {
                     let state = node.on_http_call_response(self, inputs, body_size);
-                    self.data.set(node.get_name(), state);
+                    self.data.set(name, state);
                     break;
                 }
             }
-            let _ = mem::replace(&mut self.config, Some(config));
+            let _ = mem::replace(&mut self.nodes, Some(nodes));
         }
         self.run_nodes();
 
@@ -161,8 +188,8 @@ impl HttpContext for DataKitFilter {
 }
 
 proxy_wasm::main! {{
-    nodes::register_node("template", nodes::template::Template::from_map);
-    nodes::register_node("call", nodes::call::Call::from_map);
+    nodes::register_node("template", nodes::template::TemplateConfig::from_map, nodes::template::Template::new);
+    nodes::register_node("call", nodes::call::CallConfig::from_map, nodes::call::Call::new);
 
     proxy_wasm::set_log_level(LogLevel::Debug);
     proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> {
