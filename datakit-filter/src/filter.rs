@@ -45,7 +45,7 @@ fn build_node_map(nodes: &mut NodeMap, node_names: &mut Vec<String>, config: &Co
         let name = node_config.get_connections().get_name();
         match nodes::new_node(node_config) {
             Ok(node) => {
-                nodes.insert(name.to_string(), node.clone());
+                nodes.insert(name.to_string(), node);
                 node_names.push(name.to_string());
             },
             Err(err) => {
@@ -62,7 +62,7 @@ impl RootContext for DataKitFilterRootContext {
                 Ok(config) => {
                     populate_dependency_graph(&mut self.graph, &config);
 
-                    self.config = Some(config.clone());
+                    self.config = Some(config);
 
                     true
                 }
@@ -113,7 +113,6 @@ impl RootContext for DataKitFilterRootContext {
 // -----------------------------------------------------------------------------
 
 pub struct DataKitFilter {
-    config: Option<Config>,
     node_names: Vec<String>,
     nodes: Option<NodeMap>,
     data: Data,

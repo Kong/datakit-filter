@@ -119,10 +119,6 @@ impl Node for Call {
         }
     }
 
-    fn clone_dyn(&self) -> Box<dyn Node> {
-        Box::new(self.clone())
-    }
-
     fn get_name(&self) -> &str {
         &self.config.connections.name
     }

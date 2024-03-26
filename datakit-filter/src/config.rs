@@ -2,7 +2,7 @@ use crate::nodes::NodeConfig;
 use core::slice::Iter;
 use serde::Deserialize;
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize)]
 pub struct Config {
     nodes: Vec<Box<dyn NodeConfig>>,
 }

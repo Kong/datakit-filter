@@ -30,8 +30,6 @@ pub trait Node {
         false
     }
 
-    fn clone_dyn(&self) -> Box<dyn Node>;
-
     fn get_name(&self) -> &str;
 }
 
@@ -189,17 +187,5 @@ impl<'a> Deserialize<'a> for Box<dyn NodeConfig> {
         }
 
         de.deserialize_map(DynNodeConfigVisitor)
-    }
-}
-
-impl Clone for Box<dyn Node> {
-    fn clone(&self) -> Self {
-        self.clone_dyn()
-    }
-}
-
-impl Clone for Box<dyn NodeConfig> {
-    fn clone(&self) -> Self {
-        self.clone_dyn()
     }
 }
