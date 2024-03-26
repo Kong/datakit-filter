@@ -2,9 +2,9 @@ use log;
 use proxy_wasm::{traits::*, types::*};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::any::Any;
 use std::collections::BTreeMap;
 use std::time::Duration;
-use std::any::Any;
 use url::Url;
 
 use crate::data::{Payload, State, State::*};
@@ -63,7 +63,11 @@ pub struct Call {
 
 impl Call {
     fn dispatch_call(&self, ctx: &dyn HttpContext) -> Result<u32, Status> {
-        log::info!("call: {} - url: {}", self.config.connections.name, self.config.url);
+        log::info!(
+            "call: {} - url: {}",
+            self.config.connections.name,
+            self.config.url
+        );
 
         let call_url = Url::parse(self.config.url.as_str()).map_err(|r| {
             log::error!("call: failed parsing URL from 'url' field: {}", r);
@@ -123,11 +127,7 @@ impl Node for Call {
         &self.config.connections.name
     }
 
-    fn run(
-        &mut self,
-        ctx: &dyn HttpContext,
-        inputs: Vec<&Payload>,
-    ) -> State {
+    fn run(&mut self, ctx: &dyn HttpContext, _inputs: Vec<&Payload>) -> State {
         log::info!("Call: on http request headers");
 
         match self.dispatch_call(ctx) {
@@ -147,17 +147,16 @@ impl Node for Call {
     fn on_http_call_response(
         &mut self,
         ctx: &dyn HttpContext,
-        inputs: Vec<&Payload>,
+        _inputs: Vec<&Payload>,
         body_size: usize,
     ) -> State {
         log::info!("call: on http call response");
 
-        let r =
-            if let Some(body) = ctx.get_http_call_response_body(0, body_size) {
-                Payload::from_bytes(body, ctx.get_http_call_response_header("Content-Type"))
-            } else {
-                None
-            };
+        let r = if let Some(body) = ctx.get_http_call_response_body(0, body_size) {
+            Payload::from_bytes(body, ctx.get_http_call_response_header("Content-Type"))
+        } else {
+            None
+        };
 
         Done(r)
     }

@@ -47,7 +47,7 @@ fn build_node_map(nodes: &mut NodeMap, node_names: &mut Vec<String>, config: &Co
             Ok(node) => {
                 nodes.insert(name.to_string(), node);
                 node_names.push(name.to_string());
-            },
+            }
             Err(err) => {
                 log::error!("{}", err);
             }
@@ -126,7 +126,9 @@ impl DataKitFilter {
             loop {
                 let mut any_ran = false;
                 for name in &self.node_names {
-                    let node: &mut Box<dyn Node> = nodes.get_mut(name).expect("self.nodes doesn't match self.node_names");
+                    let node: &mut Box<dyn Node> = nodes
+                        .get_mut(name)
+                        .expect("self.nodes doesn't match self.node_names");
                     if let Some(inputs) = self.data.get_inputs_for(&name, None) {
                         any_ran = true;
                         let state = node.run(self, inputs);
@@ -160,7 +162,9 @@ impl Context for DataKitFilter {
 
         if let Some(mut nodes) = mem::take(&mut self.nodes) {
             for name in &self.node_names {
-                let node: &mut Box<dyn Node> = nodes.get_mut(name).expect("self.nodes doesn't match self.node_names");
+                let node: &mut Box<dyn Node> = nodes
+                    .get_mut(name)
+                    .expect("self.nodes doesn't match self.node_names");
                 if let Some(inputs) = self.data.get_inputs_for(node.get_name(), Some(token_id)) {
                     let state = node.on_http_call_response(self, inputs, body_size);
                     self.data.set(name, state);
@@ -176,12 +180,11 @@ impl Context for DataKitFilter {
 }
 
 impl HttpContext for DataKitFilter {
-
-    fn on_http_request_headers(&mut self, nheaders: usize, eof: bool) -> Action {
+    fn on_http_request_headers(&mut self, _nheaders: usize, _eof: bool) -> Action {
         self.run_nodes()
     }
 
-    fn on_http_request_body(&mut self, body_size: usize, eof: bool) -> Action {
+    fn on_http_request_body(&mut self, _body_size: usize, _eof: bool) -> Action {
         self.run_nodes()
     }
 }

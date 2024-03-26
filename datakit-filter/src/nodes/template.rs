@@ -1,8 +1,8 @@
-use proxy_wasm::{traits::*};
+use proxy_wasm::traits::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeMap;
 use std::any::Any;
+use std::collections::BTreeMap;
 //use handlebars::Handlebars;
 
 use crate::data::{Payload, State};
@@ -35,15 +35,13 @@ impl NodeConfig for TemplateConfig {
     where
         Self: Sized,
     {
-        Box::new(TemplateConfig {
-            connections,
-        })
+        Box::new(TemplateConfig { connections })
     }
 }
 
 #[derive(Clone)]
 pub struct Template {
-    config: TemplateConfig
+    config: TemplateConfig,
 }
 
 impl Node for Template {
@@ -58,11 +56,7 @@ impl Node for Template {
         &self.config.connections.name
     }
 
-    fn run(
-        &mut self,
-        ctx: &dyn HttpContext,
-        inputs: Vec<&Payload>,
-    ) -> State {
+    fn run(&mut self, ctx: &dyn HttpContext, inputs: Vec<&Payload>) -> State {
         log::info!("Template: run - inputs: {:?}", inputs);
 
         ctx.get_http_request_headers();

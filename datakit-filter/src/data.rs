@@ -14,17 +14,15 @@ impl Payload {
             Some(ct) => {
                 if ct == "application/json" {
                     match serde_json::from_slice(&bytes) {
-                        Ok::<serde_json::Value, _>(v) => {
-                            return Some(Payload::Json(v))
-                        },
+                        Ok::<serde_json::Value, _>(v) => return Some(Payload::Json(v)),
                         Err::<_, serde_json::Error>(e) => {
                             log::error!("error decoding json: {}", e);
-                            return None
-                        },
+                            return None;
+                        }
                     }
                 }
                 None
-            },
+            }
             _ => None,
         }
     }
@@ -60,14 +58,18 @@ impl Data {
         // and re-triggering its execution.
         if let Some(state) = self.states.get(name) {
             match state {
-                State::Done(_) => { return None; },
-                State::Waiting(w) => {
-                    match &waiting {
-                        Some(id) => { if w != id { return None; } },
-                        None => { return None },
-                    }
+                State::Done(_) => {
+                    return None;
                 }
-                State::Ready() => {},
+                State::Waiting(w) => match &waiting {
+                    Some(id) => {
+                        if w != id {
+                            return None;
+                        }
+                    }
+                    None => return None,
+                },
+                State::Ready() => {}
             }
         }
 
@@ -75,8 +77,10 @@ impl Data {
         for input in self.graph.each_input(name) {
             let val = self.states.get(input);
             match val {
-                Some(State::Done(_)) => {},
-                _ => { return None; }
+                Some(State::Done(_)) => {}
+                _ => {
+                    return None;
+                }
             };
         }
 

@@ -1,11 +1,11 @@
 use core::slice::Iter;
-use proxy_wasm::{traits::*};
+use proxy_wasm::traits::*;
 use serde::de::{Error, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
+use std::any::Any;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::any::Any;
 use std::sync::{Mutex, OnceLock};
 
 use crate::data::{Payload, State, State::*};
@@ -22,7 +22,12 @@ pub trait Node {
         Done(None)
     }
 
-    fn on_http_call_response(&mut self, _ctx: &dyn HttpContext, _inputs: Vec<&Payload>, _body_size: usize) -> State {
+    fn on_http_call_response(
+        &mut self,
+        _ctx: &dyn HttpContext,
+        _inputs: Vec<&Payload>,
+        _body_size: usize,
+    ) -> State {
         Done(None)
     }
 
@@ -84,10 +89,10 @@ fn node_types() -> &'static Mutex<NodeTypeMap> {
 }
 
 pub fn register_node(name: &str, from_map: NodeConfigFromMapFn, new: NodeNewFn) -> bool {
-    node_types().lock().unwrap().insert(String::from(name), NodeFactory {
-        from_map,
-        new,
-    });
+    node_types()
+        .lock()
+        .unwrap()
+        .insert(String::from(name), NodeFactory { from_map, new });
     true
 }
 
