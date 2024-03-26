@@ -30,7 +30,7 @@ impl Payload {
 
 #[derive(PartialEq, Debug)]
 pub enum State {
-    Ready(),
+    // Ready(),
     Waiting(u32),
     Done(Option<Payload>),
 }
@@ -69,7 +69,7 @@ impl Data {
                     }
                     None => return None,
                 },
-                State::Ready() => {}
+                // State::Ready() => {}
             }
         }
 
