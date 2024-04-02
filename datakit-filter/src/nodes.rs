@@ -195,3 +195,17 @@ impl<'a> Deserialize<'a> for Box<dyn NodeConfig> {
         de.deserialize_map(DynNodeConfigVisitor)
     }
 }
+
+pub fn get_config_value<T: for<'de> serde::Deserialize<'de>>(
+    bt: &BTreeMap<String, Value>,
+    key: &str,
+    default: T,
+) -> T {
+    match bt.get(key) {
+        Some(v) => match serde_json::from_value(v.clone()) {
+            Ok(s) => s,
+            Err(_) => default,
+        },
+        None => default,
+    }
+}

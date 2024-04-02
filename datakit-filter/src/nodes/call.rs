@@ -9,7 +9,7 @@ use url::Url;
 
 use crate::data::{Payload, State, State::*};
 use crate::nodes::Connections;
-use crate::nodes::{Node, NodeConfig};
+use crate::nodes::{Node, NodeConfig, get_config_value};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CallConfig {
@@ -47,9 +47,9 @@ impl NodeConfig for CallConfig {
     {
         Box::new(CallConfig {
             connections,
-            url: get_key(&bt, "url", String::from("")),
-            method: get_key(&bt, "method", String::from("GET")),
-            timeout: get_key(&bt, "timeout", 60),
+            url: get_config_value(&bt, "url", String::from("")),
+            method: get_config_value(&bt, "method", String::from("GET")),
+            timeout: get_config_value(&bt, "timeout", 60),
         })
     }
 }
@@ -109,20 +109,6 @@ impl Call {
             trailers,
             timeout,
         )
-    }
-}
-
-fn get_key<T: for<'de> serde::Deserialize<'de>>(
-    bt: &BTreeMap<String, Value>,
-    key: &str,
-    default: T,
-) -> T {
-    match bt.get(key) {
-        Some(v) => match serde_json::from_value(v.clone()) {
-            Ok(s) => s,
-            Err(_) => default,
-        },
-        None => default,
     }
 }
 
