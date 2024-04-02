@@ -11,7 +11,7 @@ mod dependency_graph;
 mod nodes;
 
 use crate::config::Config;
-use crate::data::{Data, State};
+use crate::data::{Data, State, Payload};
 use crate::dependency_graph::DependencyGraph;
 use crate::nodes::{Node, NodeConfig};
 
@@ -186,6 +186,43 @@ impl HttpContext for DataKitFilter {
 
     fn on_http_request_body(&mut self, _body_size: usize, _eof: bool) -> Action {
         self.run_nodes()
+    }
+
+    fn on_http_response_headers(&mut self, _nheaders: usize, _eof: bool) -> Action {
+        let action = self.run_nodes();
+
+        if let Some(inputs) = self.data.get_inputs_for("response", None) {
+            if inputs.len() > 0 {
+                let output = inputs[0];
+                match output {
+                    Payload::Json(_) => {
+                        self.set_http_response_header("Content-Type", Some("application/json"));
+                    }
+                    _ => {
+                        // TODO should a magic 'response' node allow for a 'content_type' field?
+                    }
+                }
+                self.set_http_response_header("Content-Length", output.len().map(|n| n.to_string()).as_deref());
+                self.set_http_response_header("Content-Encoding", None);
+            }
+        }
+
+        action
+    }
+
+    fn on_http_response_body(&mut self, _body_size: usize, _eof: bool) -> Action {
+        let action = self.run_nodes();
+
+        if let Some(inputs) = self.data.get_inputs_for("response", None) {
+            if inputs.len() > 0 {
+                let output = inputs[0];
+
+                let bytes = output.to_bytes();
+                self.set_http_response_body(0, bytes.len(), &bytes);
+            }
+        }
+
+        action
     }
 }
 

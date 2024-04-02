@@ -45,6 +45,13 @@ impl Payload {
         }
     }
 
+    pub fn len(&self) -> Option<usize> {
+        match &self {
+            Payload::Json(_) => None,
+            Payload::Raw(s) => Some(s.len()),
+        }
+    }
+
     pub fn to_headers_vec(&self) -> Vec<(&str, &str)> {
         // TODO
         log::debug!("NYI: converting payload into headers vector");
