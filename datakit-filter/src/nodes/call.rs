@@ -167,7 +167,7 @@ impl Node for Call {
         log::info!("call: on http call response");
 
         let r = if let Some(body) = ctx.get_http_call_response_body(0, body_size) {
-            Payload::from_bytes(body, ctx.get_http_call_response_header("Content-Type"))
+            Payload::from_bytes(body, ctx.get_http_call_response_header("Content-Type").as_deref())
         } else {
             None
         };

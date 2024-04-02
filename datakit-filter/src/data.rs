@@ -9,7 +9,7 @@ pub enum Payload {
 }
 
 impl Payload {
-    pub fn from_bytes(bytes: Vec<u8>, content_type: Option<String>) -> Option<Payload> {
+    pub fn from_bytes(bytes: Vec<u8>, content_type: Option<&str>) -> Option<Payload> {
         match content_type {
             Some(ct) => {
                 if ct == "application/json" {
