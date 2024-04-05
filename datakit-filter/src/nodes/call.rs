@@ -148,15 +148,10 @@ impl Node for Call {
         Done(None)
     }
 
-    fn on_http_call_response(
-        &mut self,
-        ctx: &dyn HttpContext,
-        _inputs: Vec<Option<&Payload>>,
-        body_size: usize,
-    ) -> State {
+    fn resume(&mut self, ctx: &dyn HttpContext, _inputs: Vec<Option<&Payload>>) -> State {
         log::info!("call: on http call response");
 
-        let r = if let Some(body) = ctx.get_http_call_response_body(0, body_size) {
+        let r = if let Some(body) = ctx.get_http_call_response_body(0, usize::MAX) {
             Payload::from_bytes(
                 body,
                 ctx.get_http_call_response_header("Content-Type").as_deref(),

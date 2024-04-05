@@ -23,12 +23,7 @@ pub trait Node {
         Done(None)
     }
 
-    fn on_http_call_response(
-        &mut self,
-        _ctx: &dyn HttpContext,
-        _inputs: Vec<Option<&Payload>>,
-        _body_size: usize,
-    ) -> State {
+    fn resume(&mut self, _ctx: &dyn HttpContext, _inputs: Vec<Option<&Payload>>) -> State {
         Done(None)
     }
 

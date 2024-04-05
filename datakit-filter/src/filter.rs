@@ -155,7 +155,7 @@ impl Context for DataKitFilter {
         &mut self,
         token_id: u32,
         _nheaders: usize,
-        body_size: usize,
+        _body_size: usize,
         _num_trailers: usize,
     ) {
         log::info!("DataKitFilter: on http call response, id = {:?}", token_id);
@@ -166,7 +166,7 @@ impl Context for DataKitFilter {
                     .get_mut(name)
                     .expect("self.nodes doesn't match self.node_names");
                 if let Some(inputs) = self.data.get_inputs_for(node.get_name(), Some(token_id)) {
-                    let state = node.on_http_call_response(self, inputs, body_size);
+                    let state = node.resume(self, inputs);
                     self.data.set(name, state);
                     break;
                 }
