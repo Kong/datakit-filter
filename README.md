@@ -4,7 +4,7 @@ A Proxy-Wasm filter for data transformation tasks such as request aggregation.
 
 ## Documentation
 
-TODO
+See the `docs/` folder.
 
 ## License
 
