@@ -1,8 +1,10 @@
+use lazy_static::lazy_static;
 use log::info;
 use log::warn;
 use proxy_wasm::{traits::*, types::*};
 use serde_json_wasm::de;
 use std::collections::BTreeMap;
+use std::collections::HashSet;
 use std::mem;
 
 mod config;
@@ -18,6 +20,22 @@ use crate::nodes::{Node, NodeConfig};
 // -----------------------------------------------------------------------------
 // Root Context
 // -----------------------------------------------------------------------------
+
+lazy_static! {
+    static ref RESERVED_NODE_NAMES: HashSet<&'static str> = [
+        "request_headers",
+        "request_body",
+        "service_request_headers",
+        "service_request_body",
+        "service_response_headers",
+        "service_response_body",
+        "response_headers",
+        "response_body",
+    ]
+    .iter()
+    .copied()
+    .collect();
+}
 
 type NodeMap = BTreeMap<String, Box<dyn Node>>;
 
@@ -60,6 +78,17 @@ impl RootContext for DataKitFilterRootContext {
         if let Some(config_bytes) = self.get_plugin_configuration() {
             match de::from_slice::<Config>(&config_bytes) {
                 Ok(config) => {
+                    for node_config in config.each_node_config() {
+                        let name = node_config.get_connections().get_name();
+                        if RESERVED_NODE_NAMES.contains(name) {
+                            warn!("on_configure: cannot use reserved node name '{}'", name);
+
+                            return false;
+                        }
+                    }
+
+                    // TODO ensure that input- and output-only restrictions for the
+                    // implicit nodes are respected.
                     populate_dependency_graph(&mut self.graph, &config);
 
                     self.config = Some(config);
@@ -101,6 +130,15 @@ impl RootContext for DataKitFilterRootContext {
                 // FIXME: is it possible to do lifetime annotations
                 // to avoid cloning graph every time?
                 data: Data::new(self.graph.clone()),
+
+                do_request_headers: self.graph.has_dependents("request_headers"),
+                do_request_body: self.graph.has_dependents("request_body"),
+                do_service_request_headers: self.graph.has_providers("service_request_headers"),
+                do_service_request_body: self.graph.has_providers("service_request_body"),
+                do_service_response_headers: self.graph.has_dependents("service_response_headers"),
+                do_service_response_body: self.graph.has_dependents("service_response_body"),
+                do_response_headers: self.graph.has_providers("response_headers"),
+                do_response_body: self.graph.has_providers("response_body"),
             }))
         } else {
             None
@@ -116,6 +154,14 @@ pub struct DataKitFilter {
     node_names: Vec<String>,
     nodes: Option<NodeMap>,
     data: Data,
+    do_request_headers: bool,
+    do_request_body: bool,
+    do_service_request_headers: bool,
+    do_service_request_body: bool,
+    do_service_response_headers: bool,
+    do_service_response_body: bool,
+    do_response_headers: bool,
+    do_response_body: bool,
 }
 
 impl DataKitFilter {
@@ -179,43 +225,110 @@ impl Context for DataKitFilter {
     }
 }
 
+fn vec_of_pairs_to_map_of_vecs<V>(vec: Vec<(String, V)>) -> BTreeMap<String, Vec<V>> {
+    let mut map = BTreeMap::<String, Vec<V>>::new();
+    for (k, v) in vec {
+        let lk = k.to_lowercase();
+        match map.get_mut(&lk) {
+            Some(vs) => {
+                vs.push(v);
+            }
+            None => {
+                map.insert(lk, vec![v]);
+            }
+        };
+    }
+    map
+}
+
+fn set_headers_node(data: &mut Data, vec: Vec<(String, String)>, name: &str) {
+    let map = vec_of_pairs_to_map_of_vecs(vec);
+    let value = serde_json::to_value(map).expect("serializable map");
+    let payload = Payload::Json(value);
+    data.set(name, State::Done(Some(payload)));
+}
+
 impl HttpContext for DataKitFilter {
     fn on_http_request_headers(&mut self, _nheaders: usize, _eof: bool) -> Action {
+        if self.do_request_headers {
+            let vec = self.get_http_request_headers();
+            set_headers_node(&mut self.data, vec, "request_headers");
+        }
+
         self.run_nodes()
     }
 
-    fn on_http_request_body(&mut self, _body_size: usize, _eof: bool) -> Action {
-        self.run_nodes()
-    }
+    fn on_http_request_body(&mut self, body_size: usize, eof: bool) -> Action {
+        if eof && self.do_request_body {
+            if let Some(bytes) = self.get_http_request_body(0, body_size) {
+                let content_type = self.get_http_request_header("Content-Type");
+                let body_payload = Payload::from_bytes(bytes, content_type.as_deref());
+                self.data.set("request_body", State::Done(body_payload));
+            }
+        }
 
-    fn on_http_response_headers(&mut self, _nheaders: usize, _eof: bool) -> Action {
         let action = self.run_nodes();
 
-        if let Some(inputs) = self.data.get_inputs_for("response", None) {
-            assert!(inputs.len() > 0);
-            if let Some(response_body) = inputs[0] {
-                if let Payload::Json(_) = response_body {
-                    self.set_http_response_header("Content-Type", Some("application/json"));
+        // TODO service_request_headers
+
+        if self.do_service_request_body {
+            if let Some(inputs) = self.data.get_inputs_for("service_request_body", None) {
+                assert!(!inputs.is_empty());
+                if let Some(body) = inputs[0] {
+                    let bytes = body.to_bytes();
+                    self.set_http_request_body(0, bytes.len(), &bytes);
                 }
-                self.set_http_response_header(
-                    "Content-Length",
-                    response_body.len().map(|n| n.to_string()).as_deref(),
-                );
-                self.set_http_response_header("Content-Encoding", None);
             }
         }
 
         action
     }
 
-    fn on_http_response_body(&mut self, _body_size: usize, _eof: bool) -> Action {
+    fn on_http_response_headers(&mut self, _nheaders: usize, _eof: bool) -> Action {
+        if self.do_service_response_headers {
+            let vec = self.get_http_response_headers();
+            set_headers_node(&mut self.data, vec, "service_response_headers");
+        }
+
         let action = self.run_nodes();
 
-        if let Some(inputs) = self.data.get_inputs_for("response", None) {
-            assert!(inputs.len() > 0);
-            if let Some(response_body) = inputs[0] {
-                let bytes = response_body.to_bytes();
-                self.set_http_response_body(0, bytes.len(), &bytes);
+        // TODO response_headers
+
+        if self.do_response_body {
+            if let Some(inputs) = self.data.get_inputs_for("response_body", None) {
+                assert!(!inputs.is_empty());
+                if let Some(body) = inputs[0] {
+                    if let Payload::Json(_) = body {
+                        self.set_http_response_header("Content-Type", Some("application/json"));
+                    }
+                    let content_length = body.len().map(|n| n.to_string());
+                    self.set_http_response_header("Content-Length", content_length.as_deref());
+                    self.set_http_response_header("Content-Encoding", None);
+                }
+            }
+        }
+
+        action
+    }
+
+    fn on_http_response_body(&mut self, body_size: usize, eof: bool) -> Action {
+        if eof && self.do_service_response_body {
+            if let Some(bytes) = self.get_http_response_body(0, body_size) {
+                let content_type = self.get_http_response_header("Content-Type");
+                let payload = Payload::from_bytes(bytes, content_type.as_deref());
+                self.data.set("service_response_body", State::Done(payload));
+            }
+        }
+
+        let action = self.run_nodes();
+
+        if self.do_response_body {
+            if let Some(inputs) = self.data.get_inputs_for("response_body", None) {
+                assert!(!inputs.is_empty());
+                if let Some(body) = inputs[0] {
+                    let bytes = body.to_bytes();
+                    self.set_http_response_body(0, bytes.len(), &bytes);
+                }
             }
         }
 

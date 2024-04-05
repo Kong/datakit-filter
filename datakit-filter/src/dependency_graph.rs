@@ -32,6 +32,14 @@ impl DependencyGraph {
         add_to(&mut self.providers, dst, src);
     }
 
+    pub fn has_dependents(&self, name: &str) -> bool {
+        self.dependents.contains_key(name)
+    }
+
+    pub fn has_providers(&self, name: &str) -> bool {
+        self.providers.contains_key(name)
+    }
+
     pub fn each_input(&self, name: &str) -> Iter<String> {
         if let Some(items) = self.providers.get(name) {
             items.iter()
