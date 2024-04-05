@@ -9,7 +9,7 @@ use url::Url;
 
 use crate::data::{Payload, State, State::*};
 use crate::nodes::Connections;
-use crate::nodes::{Node, NodeConfig, get_config_value};
+use crate::nodes::{get_config_value, Node, NodeConfig};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CallConfig {
@@ -130,7 +130,11 @@ impl Node for Call {
     fn run(&mut self, ctx: &dyn HttpContext, inputs: Vec<Option<&Payload>>) -> State {
         log::info!("Call: on http request headers");
 
-        match self.dispatch_call(ctx, inputs.first().copied().unwrap_or(None), inputs.get(1).copied().unwrap_or(None)) {
+        match self.dispatch_call(
+            ctx,
+            inputs.first().copied().unwrap_or(None),
+            inputs.get(1).copied().unwrap_or(None),
+        ) {
             Ok(id) => {
                 log::info!("call: dispatch call id: {:?}", id);
                 self.token_id = Some(id);
@@ -153,7 +157,10 @@ impl Node for Call {
         log::info!("call: on http call response");
 
         let r = if let Some(body) = ctx.get_http_call_response_body(0, body_size) {
-            Payload::from_bytes(body, ctx.get_http_call_response_header("Content-Type").as_deref())
+            Payload::from_bytes(
+                body,
+                ctx.get_http_call_response_header("Content-Type").as_deref(),
+            )
         } else {
             None
         };

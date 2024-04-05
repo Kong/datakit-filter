@@ -11,7 +11,7 @@ mod dependency_graph;
 mod nodes;
 
 use crate::config::Config;
-use crate::data::{Data, State, Payload};
+use crate::data::{Data, Payload, State};
 use crate::dependency_graph::DependencyGraph;
 use crate::nodes::{Node, NodeConfig};
 
@@ -197,7 +197,10 @@ impl HttpContext for DataKitFilter {
                 if let Payload::Json(_) = response_body {
                     self.set_http_response_header("Content-Type", Some("application/json"));
                 }
-                self.set_http_response_header("Content-Length", response_body.len().map(|n| n.to_string()).as_deref());
+                self.set_http_response_header(
+                    "Content-Length",
+                    response_body.len().map(|n| n.to_string()).as_deref(),
+                );
                 self.set_http_response_header("Content-Encoding", None);
             }
         }

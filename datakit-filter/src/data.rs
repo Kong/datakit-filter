@@ -84,7 +84,11 @@ impl Data {
         self.states.insert(name.to_string(), state);
     }
 
-    pub fn get_inputs_for(&self, name: &str, waiting: Option<u32>) -> Option<Vec<Option<&Payload>>> {
+    pub fn get_inputs_for(
+        &self,
+        name: &str,
+        waiting: Option<u32>,
+    ) -> Option<Vec<Option<&Payload>>> {
         // If node is Done, avoid producing inputs
         // and re-triggering its execution.
         if let Some(state) = self.states.get(name) {

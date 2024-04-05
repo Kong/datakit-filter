@@ -1,13 +1,13 @@
+use handlebars::Handlebars;
 use proxy_wasm::traits::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::any::Any;
 use std::collections::BTreeMap;
-use handlebars::Handlebars;
 
 use crate::data::{Payload, State};
 use crate::nodes::Connections;
-use crate::nodes::{Node, NodeConfig, get_config_value};
+use crate::nodes::{get_config_value, Node, NodeConfig};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TemplateConfig {
@@ -63,7 +63,7 @@ impl Node for Template<'_> {
                 let mut hb = Handlebars::new();
 
                 match hb.register_template_string("template", &cc.template) {
-                    Ok(()) => {},
+                    Ok(()) => {}
                     Err(err) => {
                         log::error!("template: error registering template: {}", err);
                     }
@@ -73,7 +73,7 @@ impl Node for Template<'_> {
                     config: cc.clone(),
                     handlebars: hb,
                 })
-            },
+            }
             None => panic!("incompatible NodeConfig"),
         }
     }
@@ -92,15 +92,16 @@ impl Node for Template<'_> {
                 Some(Payload::Raw(vec_bytes)) => {
                     match std::str::from_utf8(vec_bytes) {
                         Ok(s) => {
-                            let v = serde_json::to_value::<String>(s.into()).expect("valid UTF-8 string");
+                            let v = serde_json::to_value::<String>(s.into())
+                                .expect("valid UTF-8 string");
                             vs.push((input_name, v));
                         }
                         Err(err) => {
                             log::error!("template: input string is not valid UTF-8: {}", err);
                         }
                     };
-                },
-                None => {},
+                }
+                None => {}
             }
         }
 
@@ -112,11 +113,11 @@ impl Node for Template<'_> {
             Ok(output) => {
                 log::error!("output: {}", output);
                 Payload::from_bytes(output.into(), Some(&self.config.content_type))
-            },
+            }
             Err(err) => {
                 log::error!("template: error rendering template: {}", err);
                 None
-            },
+            }
         })
     }
 }
