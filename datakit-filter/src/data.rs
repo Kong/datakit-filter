@@ -84,7 +84,7 @@ impl Data {
         self.states.insert(name.to_string(), state);
     }
 
-    pub fn get_inputs_for(&self, name: &str, waiting: Option<u32>) -> Option<Vec<&Payload>> {
+    pub fn get_inputs_for(&self, name: &str, waiting: Option<u32>) -> Option<Vec<Option<&Payload>>> {
         // If node is Done, avoid producing inputs
         // and re-triggering its execution.
         if let Some(state) = self.states.get(name) {
@@ -116,10 +116,10 @@ impl Data {
         }
 
         // If so, allocate the vector with the result.
-        let mut vec: Vec<&Payload> = Vec::new();
+        let mut vec: Vec<Option<&Payload>> = Vec::new();
         for input in self.graph.each_input(name) {
-            if let Some(State::Done(Some(p))) = self.states.get(input) {
-                vec.push(p);
+            if let Some(State::Done(p)) = self.states.get(input) {
+                vec.push(p.as_ref());
             }
         }
 

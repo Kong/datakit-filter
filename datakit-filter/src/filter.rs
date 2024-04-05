@@ -192,17 +192,12 @@ impl HttpContext for DataKitFilter {
         let action = self.run_nodes();
 
         if let Some(inputs) = self.data.get_inputs_for("response", None) {
-            if inputs.len() > 0 {
-                let output = inputs[0];
-                match output {
-                    Payload::Json(_) => {
-                        self.set_http_response_header("Content-Type", Some("application/json"));
-                    }
-                    _ => {
-                        // TODO should a magic 'response' node allow for a 'content_type' field?
-                    }
+            assert!(inputs.len() > 0);
+            if let Some(response_body) = inputs[0] {
+                if let Payload::Json(_) = response_body {
+                    self.set_http_response_header("Content-Type", Some("application/json"));
                 }
-                self.set_http_response_header("Content-Length", output.len().map(|n| n.to_string()).as_deref());
+                self.set_http_response_header("Content-Length", response_body.len().map(|n| n.to_string()).as_deref());
                 self.set_http_response_header("Content-Encoding", None);
             }
         }
@@ -214,10 +209,9 @@ impl HttpContext for DataKitFilter {
         let action = self.run_nodes();
 
         if let Some(inputs) = self.data.get_inputs_for("response", None) {
-            if inputs.len() > 0 {
-                let output = inputs[0];
-
-                let bytes = output.to_bytes();
+            assert!(inputs.len() > 0);
+            if let Some(response_body) = inputs[0] {
+                let bytes = response_body.to_bytes();
                 self.set_http_response_body(0, bytes.len(), &bytes);
             }
         }

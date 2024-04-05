@@ -19,14 +19,14 @@ pub trait Node {
     where
         Self: Sized;
 
-    fn run(&mut self, _ctx: &dyn HttpContext, _inputs: Vec<&Payload>) -> State {
+    fn run(&mut self, _ctx: &dyn HttpContext, _inputs: Vec<Option<&Payload>>) -> State {
         Done(None)
     }
 
     fn on_http_call_response(
         &mut self,
         _ctx: &dyn HttpContext,
-        _inputs: Vec<&Payload>,
+        _inputs: Vec<Option<&Payload>>,
         _body_size: usize,
     ) -> State {
         Done(None)

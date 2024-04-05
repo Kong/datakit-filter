@@ -127,10 +127,10 @@ impl Node for Call {
         &self.config.connections.name
     }
 
-    fn run(&mut self, ctx: &dyn HttpContext, inputs: Vec<&Payload>) -> State {
+    fn run(&mut self, ctx: &dyn HttpContext, inputs: Vec<Option<&Payload>>) -> State {
         log::info!("Call: on http request headers");
 
-        match self.dispatch_call(ctx, inputs.first().copied(), inputs.get(1).copied()) {
+        match self.dispatch_call(ctx, inputs.first().copied().unwrap_or(None), inputs.get(1).copied().unwrap_or(None)) {
             Ok(id) => {
                 log::info!("call: dispatch call id: {:?}", id);
                 self.token_id = Some(id);
@@ -147,7 +147,7 @@ impl Node for Call {
     fn on_http_call_response(
         &mut self,
         ctx: &dyn HttpContext,
-        _inputs: Vec<&Payload>,
+        _inputs: Vec<Option<&Payload>>,
         body_size: usize,
     ) -> State {
         log::info!("call: on http call response");

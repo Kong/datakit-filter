@@ -78,7 +78,7 @@ impl Node for Template<'_> {
         }
     }
 
-    fn run(&mut self, _ctx: &dyn HttpContext, inputs: Vec<&Payload>) -> State {
+    fn run(&mut self, _ctx: &dyn HttpContext, inputs: Vec<Option<&Payload>>) -> State {
         log::info!("Template: run - inputs: {:?}", inputs);
 
         let mut vs = Vec::new();
@@ -86,10 +86,10 @@ impl Node for Template<'_> {
 
         for (input_name, input) in self.config.connections.each_input().zip(inputs.iter()) {
             match input {
-                Payload::Json(value) => {
+                Some(Payload::Json(value)) => {
                     data.insert(input_name, value);
                 }
-                Payload::Raw(vec_bytes) => {
+                Some(Payload::Raw(vec_bytes)) => {
                     match std::str::from_utf8(vec_bytes) {
                         Ok(s) => {
                             let v = serde_json::to_value::<String>(s.into()).expect("valid UTF-8 string");
@@ -99,7 +99,8 @@ impl Node for Template<'_> {
                             log::error!("template: input string is not valid UTF-8: {}", err);
                         }
                     };
-                }
+                },
+                None => {},
             }
         }
 
