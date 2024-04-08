@@ -52,11 +52,50 @@ impl Payload {
         }
     }
 
-    pub fn to_headers_vec(&self) -> Vec<(&str, &str)> {
-        // TODO
-        log::debug!("NYI: converting payload into headers vector");
-        vec![]
+    pub fn to_pwm_headers(&self) -> Vec<(&str, &str)> {
+        match &self {
+            Payload::Json(value) => {
+                let mut vec: Vec<(&str, &str)> = vec![];
+                if let serde_json::Value::Object(map) = value {
+                    for (k, entry) in map {
+                        match entry {
+                            serde_json::Value::Array(vs) => {
+                                for v in vs {
+                                    if let serde_json::Value::String(s) = v {
+                                        vec.push((k, s));
+                                    }
+                                }
+                            },
+
+                            // accept string values as well
+                            serde_json::Value::String(s) => {
+                                vec.push((k, s));
+                            },
+
+                            _ => {},
+                        }
+                    }
+                }
+
+                vec
+            },
+            _ => {
+                // TODO
+                log::debug!("NYI: converting payload into headers vector");
+                vec![]
+            }
+        }
     }
+}
+
+pub fn to_pwm_headers(payload: Option<&Payload>) -> Vec<(&str, &str)> {
+    payload.map_or_else(Vec::new, |p| p.to_pwm_headers())
+}
+
+/// To use this result in proxy-wasm calls as an Option<&[u8]>, use:
+/// data::to_pwm_body(p).as_deref()
+pub fn to_pwm_body(payload: Option<&Payload>) -> Option<Box<[u8]>> {
+    payload.map(|p| p.to_bytes()).map(Vec::into_boxed_slice)
 }
 
 #[derive(PartialEq, Debug)]

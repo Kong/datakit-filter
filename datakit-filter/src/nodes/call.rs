@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 use url::Url;
 
+use crate::data;
 use crate::data::{Payload, State, State::*};
 use crate::nodes::Connections;
 use crate::nodes::{get_config_value, Node, NodeConfig};
@@ -87,13 +88,11 @@ impl Call {
             }
         }?;
 
-        let mut headers_vec: Vec<(&str, &str)> =
-            headers.map_or_else(Vec::new, |p| p.to_headers_vec());
+        let mut headers_vec = data::to_pwm_headers(headers);
         headers_vec.push((":method", self.config.method.as_str()));
         headers_vec.push((":path", call_url.path()));
 
-        let body_vec: Option<Vec<u8>> = body.map(|p| p.to_bytes());
-        let body_slice: Option<Box<[u8]>> = body_vec.map(Vec::into_boxed_slice);
+        let body_slice = data::to_pwm_body(body);
 
         let trailers = vec![];
         let timeout = Duration::from_secs(self.config.timeout.into());
