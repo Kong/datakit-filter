@@ -278,12 +278,9 @@ impl HttpContext for DataKitFilter {
         }
 
         if self.do_service_request_body {
-            if let Some(inputs) = self.data.get_inputs_for("service_request_body", None) {
-                assert!(!inputs.is_empty());
-                if let Some(body) = inputs[0] {
-                    let bytes = body.to_bytes();
-                    self.set_http_request_body(0, bytes.len(), &bytes);
-                }
+            if let Some(payload) = self.data.first_input_for("service_request_body", None) {
+                let bytes = payload.to_bytes();
+                self.set_http_request_body(0, bytes.len(), &bytes);
             }
         }
 
@@ -306,16 +303,13 @@ impl HttpContext for DataKitFilter {
         }
 
         if self.do_response_body {
-            if let Some(inputs) = self.data.get_inputs_for("response_body", None) {
-                assert!(!inputs.is_empty());
-                if let Some(body) = inputs[0] {
-                    if let Payload::Json(_) = body {
-                        self.set_http_response_header("Content-Type", Some("application/json"));
-                    }
-                    let content_length = body.len().map(|n| n.to_string());
-                    self.set_http_response_header("Content-Length", content_length.as_deref());
-                    self.set_http_response_header("Content-Encoding", None);
+            if let Some(payload) = self.data.first_input_for("response_body", None) {
+                if let Payload::Json(_) = payload {
+                    self.set_http_response_header("Content-Type", Some("application/json"));
                 }
+                let content_length = payload.len().map(|n| n.to_string());
+                self.set_http_response_header("Content-Length", content_length.as_deref());
+                self.set_http_response_header("Content-Encoding", None);
             }
         }
 
@@ -333,14 +327,9 @@ impl HttpContext for DataKitFilter {
 
         let action = self.run_nodes();
 
-        if self.do_response_body {
-            if let Some(inputs) = self.data.get_inputs_for("response_body", None) {
-                assert!(!inputs.is_empty());
-                if let Some(body) = inputs[0] {
-                    let bytes = body.to_bytes();
-                    self.set_http_response_body(0, bytes.len(), &bytes);
-                }
-            }
+        if let Some(payload) = self.data.first_input_for("response_body", None) {
+            let bytes = payload.to_bytes();
+            self.set_http_response_body(0, bytes.len(), &bytes);
         }
 
         action
