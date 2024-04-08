@@ -71,18 +71,14 @@ impl Node for Response {
 pub struct ResponseFactory {}
 
 impl NodeFactory for ResponseFactory {
-    fn config_from_map(
-        &self,
-        bt: BTreeMap<String, Value>,
-        connections: Connections,
-    ) -> Box<dyn NodeConfig> {
+    fn new_config(&self, bt: BTreeMap<String, Value>, conns: Connections) -> Box<dyn NodeConfig> {
         Box::new(ResponseConfig {
-            connections,
+            connections: conns,
             status: get_config_value(&bt, "status", 200),
         })
     }
 
-    fn new_box(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
+    fn new_node(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
         match config.as_any().downcast_ref::<ResponseConfig>() {
             Some(cc) => Box::new(Response { config: cc.clone() }),
             None => panic!("incompatible NodeConfig"),

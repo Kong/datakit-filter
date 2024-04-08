@@ -111,19 +111,15 @@ impl Node for Template<'_> {
 pub struct TemplateFactory {}
 
 impl NodeFactory for TemplateFactory {
-    fn config_from_map(
-        &self,
-        bt: BTreeMap<String, Value>,
-        connections: Connections,
-    ) -> Box<dyn NodeConfig> {
+    fn new_config(&self, bt: BTreeMap<String, Value>, conns: Connections) -> Box<dyn NodeConfig> {
         Box::new(TemplateConfig {
-            connections,
+            connections: conns,
             template: get_config_value(&bt, "template", String::from("")),
             content_type: get_config_value(&bt, "content_type", String::from("application/json")),
         })
     }
 
-    fn new_box(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
+    fn new_node(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
         match config.as_any().downcast_ref::<TemplateConfig>() {
             Some(cc) => Box::new(Template::new(cc.clone())),
             None => panic!("incompatible NodeConfig"),

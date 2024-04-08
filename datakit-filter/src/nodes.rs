@@ -62,13 +62,9 @@ pub trait NodeConfig {
 }
 
 pub trait NodeFactory: Send {
-    fn config_from_map(
-        &self,
-        bt: BTreeMap<String, Value>,
-        connections: Connections,
-    ) -> Box<dyn NodeConfig>;
+    fn new_config(&self, bt: BTreeMap<String, Value>, conns: Connections) -> Box<dyn NodeConfig>;
 
-    fn new_box(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node>;
+    fn new_node(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node>;
 }
 
 type NodeTypeMap = BTreeMap<String, Box<dyn NodeFactory>>;
@@ -90,7 +86,7 @@ pub fn register_node(name: &str, factory: Box<dyn NodeFactory>) -> bool {
 pub fn new_node(config: &Box<dyn NodeConfig>) -> Result<Box<dyn Node>, String> {
     let node_type = config.get_node_type();
     if let Some(nf) = node_types().lock().unwrap().get(node_type) {
-        Ok(nf.new_box(config))
+        Ok(nf.new_node(config))
     } else {
         Err(format!("no such node type: {}", node_type))
     }
@@ -169,9 +165,7 @@ impl<'a> Deserialize<'a> for Box<dyn NodeConfig> {
 
                 if let Some(t) = typ {
                     if let Some(nf) = node_types().lock().unwrap().get(&t) {
-                        let v: Self::Value = nf.config_from_map(bt, connections);
-
-                        Ok(v)
+                        Ok(nf.new_config(bt, connections))
                     } else {
                         Err(Error::unknown_variant(&t, &[]))
                     }

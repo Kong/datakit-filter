@@ -154,20 +154,16 @@ impl Node for Call {
 pub struct CallFactory {}
 
 impl NodeFactory for CallFactory {
-    fn config_from_map(
-        &self,
-        bt: BTreeMap<String, Value>,
-        connections: Connections,
-    ) -> Box<dyn NodeConfig> {
+    fn new_config(&self, bt: BTreeMap<String, Value>, conns: Connections) -> Box<dyn NodeConfig> {
         Box::new(CallConfig {
-            connections,
+            connections: conns,
             url: get_config_value(&bt, "url", String::from("")),
             method: get_config_value(&bt, "method", String::from("GET")),
             timeout: get_config_value(&bt, "timeout", 60),
         })
     }
 
-    fn new_box(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
+    fn new_node(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
         match config.as_any().downcast_ref::<CallConfig>() {
             Some(cc) => Box::new(Call::new(cc.clone())),
             None => panic!("incompatible NodeConfig"),
