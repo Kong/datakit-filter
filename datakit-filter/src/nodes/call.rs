@@ -132,11 +132,7 @@ impl Node for Call {
         let body = inputs.first().unwrap_or(&None);
         let headers = inputs.get(1).unwrap_or(&None);
 
-        match self.dispatch_call(
-            ctx,
-            *body,
-            *headers,
-        ) {
+        match self.dispatch_call(ctx, *body, *headers) {
             Ok(id) => {
                 log::debug!("call: dispatch call id: {:?}", id);
                 self.token_id = Some(id);

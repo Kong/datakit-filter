@@ -11,8 +11,8 @@ use std::sync::{Mutex, OnceLock};
 use crate::data::{Payload, State, State::*};
 
 pub mod call;
-pub mod template;
 pub mod response;
+pub mod template;
 
 pub trait Node {
     #[allow(clippy::borrowed_box)]

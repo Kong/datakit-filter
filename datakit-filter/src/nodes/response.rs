@@ -1,5 +1,5 @@
-use proxy_wasm::{traits::*};
-use serde::{Deserialize};
+use proxy_wasm::traits::*;
+use serde::Deserialize;
 use serde_json::Value;
 use std::any::Any;
 use std::collections::BTreeMap;
@@ -54,9 +54,7 @@ pub struct Response {
 impl Node for Response {
     fn new_box(config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
         match config.as_any().downcast_ref::<ResponseConfig>() {
-            Some(cc) => Box::new(Response {
-                config: cc.clone(),
-            }),
+            Some(cc) => Box::new(Response { config: cc.clone() }),
             None => panic!("incompatible NodeConfig"),
         }
     }
