@@ -36,6 +36,14 @@ impl DependencyGraph {
         self.providers.contains_key(name)
     }
 
+    pub fn get_input_names(&self, name: &str) -> &Vec<String> {
+        if let Some(items) = self.providers.get(name) {
+            items
+        } else {
+            &self.empty
+        }
+    }
+
     pub fn each_input(&self, name: &str) -> Iter<String> {
         if let Some(items) = self.providers.get(name) {
             items.iter()

@@ -1,10 +1,14 @@
+use crate::nodes;
 use crate::nodes::NodeConfig;
 use crate::DependencyGraph;
-use core::slice::Iter;
 use lazy_static::lazy_static;
-use serde::Deserialize;
+use serde::de::{Error, MapAccess, Visitor};
+use serde::{Deserialize, Deserializer};
+use serde_json::Value;
 use serde_json_wasm::de;
+use std::collections::BTreeMap;
 use std::collections::HashSet;
+use std::fmt;
 
 lazy_static! {
     static ref RESERVED_NODE_NAMES: HashSet<&'static str> = [
@@ -22,13 +26,108 @@ lazy_static! {
     .collect();
 }
 
+pub struct UserNodeConfig {
+    node_type: String,
+    name: String,
+    bt: BTreeMap<String, serde_json::Value>,
+    inputs: Vec<String>,
+    outputs: Vec<String>,
+}
+
+impl<'a> Deserialize<'a> for UserNodeConfig {
+    fn deserialize<D>(de: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'a>,
+    {
+        struct UserNodeConfigVisitor;
+
+        impl<'de> Visitor<'de> for UserNodeConfigVisitor {
+            type Value = UserNodeConfig;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a DataKit node config")
+            }
+
+            fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+            where
+                M: MapAccess<'de>,
+            {
+                let mut bt = BTreeMap::new();
+                let mut typ: Option<String> = None;
+                let mut name: Option<String> = None;
+                let mut inputs = Vec::new();
+                let mut outputs = Vec::new();
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "type" => {
+                            if let Ok(serde_json::Value::String(value)) = map.next_value() {
+                                typ = Some(value);
+                            }
+                        }
+                        "name" => {
+                            if let Ok(serde_json::Value::String(value)) = map.next_value() {
+                                name = Some(value);
+                            }
+                        }
+                        "input" => {
+                            if let Ok(serde_json::Value::String(value)) = map.next_value() {
+                                inputs.push(value);
+                            }
+                        }
+                        "inputs" => {
+                            if let Ok(values) = map.next_value() {
+                                if let Ok(v) = serde_json::from_value::<Vec<String>>(values) {
+                                    inputs = v;
+                                }
+                            }
+                        }
+                        "output" => {
+                            if let Ok(serde_json::Value::String(value)) = map.next_value() {
+                                outputs.push(value);
+                            }
+                        }
+                        "outputs" => {
+                            if let Ok(values) = map.next_value() {
+                                if let Ok(v) = serde_json::from_value::<Vec<String>>(values) {
+                                    outputs = v;
+                                }
+                            }
+                        }
+                        _ => {
+                            if let Ok(value) = map.next_value() {
+                                bt.insert(key, value);
+                            }
+                        }
+                    }
+                }
+
+                if let Some(node_type) = typ {
+                    let name = name.unwrap_or_else(|| format!("{:p}", &bt));
+                    Ok(UserNodeConfig {
+                        node_type,
+                        name,
+                        bt,
+                        inputs,
+                        outputs,
+                    })
+                } else {
+                    Err(Error::missing_field("type"))
+                }
+            }
+        }
+
+        de.deserialize_map(UserNodeConfigVisitor)
+    }
+}
+
 #[derive(Deserialize, Default)]
 pub struct UserConfig {
-    nodes: Vec<Box<dyn NodeConfig>>,
+    nodes: Vec<UserNodeConfig>,
 }
 
 pub struct Config {
     nodes: Vec<Box<dyn NodeConfig>>,
+    node_names: Vec<String>,
     graph: DependencyGraph,
 }
 
@@ -36,21 +135,42 @@ impl Config {
     pub fn new(config_bytes: Vec<u8>) -> Result<Config, String> {
         match de::from_slice::<UserConfig>(&config_bytes) {
             Ok(user_config) => {
-                for node_config in &user_config.nodes {
-                    let name = node_config.get_name();
+                let mut node_names = Vec::new();
+                let mut graph: DependencyGraph = Default::default();
+
+                for unc in &user_config.nodes {
+                    let name: &str = &unc.name;
+
                     if RESERVED_NODE_NAMES.contains(name) {
                         return Err(format!("cannot use reserved node name '{}'", name));
                     }
+
+                    node_names.push(name.to_string());
+                    for input in &unc.inputs {
+                        graph.add(input, name);
+                    }
+                    for output in &unc.outputs {
+                        graph.add(name, output);
+                    }
                 }
 
-                let mut config = Config {
-                    nodes: user_config.nodes,
-                    graph: Default::default(),
-                };
+                let mut node_configs = vec![];
 
-                config.populate_dependency_graph();
+                for unc in &user_config.nodes {
+                    let inputs = graph.get_input_names(&unc.name);
+                    match nodes::new_config(&unc.node_type, &unc.name, inputs, &unc.bt) {
+                        Ok(nc) => node_configs.push(nc),
+                        Err(err) => {
+                            return Err(err);
+                        }
+                    };
+                }
 
-                Ok(config)
+                Ok(Config {
+                    nodes: node_configs,
+                    node_names,
+                    graph,
+                })
             }
             Err(err) => Err(format!(
                 "failed parsing configuration: {}: {}",
@@ -61,26 +181,29 @@ impl Config {
     }
 
     /// An iterator of immutable references to Nodes
-    pub fn each_node_config(&self) -> Iter<Box<dyn NodeConfig>> {
-        self.nodes.iter()
+    pub fn each_node_config(&self) -> impl Iterator<Item = (&String, &Box<dyn NodeConfig>)> {
+        std::iter::zip(self.node_names.iter(), self.nodes.iter()).into_iter()
+    }
+
+    pub fn get_node_names(&self) -> &Vec<String> {
+        &self.node_names
     }
 
     pub fn get_graph(&self) -> &DependencyGraph {
         &self.graph
     }
+}
 
-    fn populate_dependency_graph(&mut self) {
-        // TODO ensure that input- and output-only restrictions for the
-        // implicit nodes are respected.
-
-        for node_config in &self.nodes {
-            let conns = node_config.get_connections();
-            for input in conns.each_input() {
-                self.graph.add(input, conns.get_name());
-            }
-            for output in conns.each_output() {
-                self.graph.add(conns.get_name(), output);
-            }
-        }
+pub fn get_config_value<T: for<'de> serde::Deserialize<'de>>(
+    bt: &BTreeMap<String, Value>,
+    key: &str,
+    default: T,
+) -> T {
+    match bt.get(key) {
+        Some(v) => match serde_json::from_value(v.clone()) {
+            Ok(s) => s,
+            Err(_) => default,
+        },
+        None => default,
     }
 }

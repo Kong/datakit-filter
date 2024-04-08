@@ -1,21 +1,18 @@
 use log;
 use proxy_wasm::{traits::*, types::*};
-use serde::Deserialize;
 use serde_json::Value;
 use std::any::Any;
 use std::collections::BTreeMap;
 use std::time::Duration;
 use url::Url;
 
+use crate::config::get_config_value;
 use crate::data;
 use crate::data::{Payload, State, State::*};
-use crate::nodes::Connections;
-use crate::nodes::{get_config_value, Node, NodeConfig, NodeFactory};
+use crate::nodes::{Node, NodeConfig, NodeFactory};
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct CallConfig {
-    connections: Connections,
-
     // FIXME: the optional ones should be Option,
     // but we're not really serializing this for now, just deserializing...
 
@@ -26,10 +23,6 @@ pub struct CallConfig {
 }
 
 impl NodeConfig for CallConfig {
-    fn get_connections(&self) -> &Connections {
-        &self.connections
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -64,11 +57,7 @@ impl Call {
         body: Option<&Payload>,
         headers: Option<&Payload>,
     ) -> Result<u32, Status> {
-        log::debug!(
-            "call: {} - url: {}",
-            self.config.get_name(),
-            self.config.url
-        );
+        log::debug!("call: url: {}", self.config.url);
 
         let call_url = Url::parse(self.config.url.as_str()).map_err(|r| {
             log::error!("call: failed parsing URL from 'url' field: {}", r);
@@ -107,10 +96,6 @@ impl Call {
 }
 
 impl Node for Call {
-    fn get_name(&self) -> &str {
-        &self.config.get_name()
-    }
-
     fn run(&mut self, ctx: &dyn HttpContext, inputs: Vec<Option<&Payload>>) -> State {
         log::debug!("call: run");
 
@@ -154,13 +139,17 @@ impl Node for Call {
 pub struct CallFactory {}
 
 impl NodeFactory for CallFactory {
-    fn new_config(&self, bt: BTreeMap<String, Value>, conns: Connections) -> Box<dyn NodeConfig> {
-        Box::new(CallConfig {
-            connections: conns,
-            url: get_config_value(&bt, "url", String::from("")),
-            method: get_config_value(&bt, "method", String::from("GET")),
-            timeout: get_config_value(&bt, "timeout", 60),
-        })
+    fn new_config(
+        &self,
+        _name: &str,
+        _inputs: &Vec<String>,
+        bt: &BTreeMap<String, Value>,
+    ) -> Result<Box<dyn NodeConfig>, String> {
+        Ok(Box::new(CallConfig {
+            url: get_config_value(bt, "url", String::from("")),
+            method: get_config_value(bt, "method", String::from("GET")),
+            timeout: get_config_value(bt, "timeout", 60),
+        }))
     }
 
     fn new_node(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node> {

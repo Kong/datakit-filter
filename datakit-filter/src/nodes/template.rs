@@ -1,27 +1,21 @@
 use handlebars::Handlebars;
 use proxy_wasm::traits::*;
-use serde::Deserialize;
 use serde_json::Value;
 use std::any::Any;
 use std::collections::BTreeMap;
 
+use crate::config::get_config_value;
 use crate::data::{Payload, State};
-use crate::nodes::Connections;
-use crate::nodes::{get_config_value, Node, NodeConfig, NodeFactory};
+use crate::nodes::{Node, NodeConfig, NodeFactory};
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct TemplateConfig {
-    connections: Connections,
-
     template: String,
     content_type: String,
+    inputs: Vec<String>,
 }
 
 impl NodeConfig for TemplateConfig {
-    fn get_connections(&self) -> &Connections {
-        &self.connections
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -60,17 +54,13 @@ impl Template<'_> {
 }
 
 impl Node for Template<'_> {
-    fn get_name(&self) -> &str {
-        &self.config.connections.name
-    }
-
     fn run(&mut self, _ctx: &dyn HttpContext, inputs: Vec<Option<&Payload>>) -> State {
         log::debug!("template: run - inputs: {:?}", inputs);
 
         let mut vs = Vec::new();
         let mut data = BTreeMap::new();
 
-        for (input_name, input) in self.config.connections.each_input().zip(inputs.iter()) {
+        for (input_name, input) in self.config.inputs.iter().zip(inputs.iter()) {
             match input {
                 Some(Payload::Json(value)) => {
                     data.insert(input_name, value);
@@ -111,12 +101,17 @@ impl Node for Template<'_> {
 pub struct TemplateFactory {}
 
 impl NodeFactory for TemplateFactory {
-    fn new_config(&self, bt: BTreeMap<String, Value>, conns: Connections) -> Box<dyn NodeConfig> {
-        Box::new(TemplateConfig {
-            connections: conns,
-            template: get_config_value(&bt, "template", String::from("")),
-            content_type: get_config_value(&bt, "content_type", String::from("application/json")),
-        })
+    fn new_config(
+        &self,
+        _name: &str,
+        inputs: &Vec<String>,
+        bt: &BTreeMap<String, Value>,
+    ) -> Result<Box<dyn NodeConfig>, String> {
+        Ok(Box::new(TemplateConfig {
+            inputs: inputs.clone(),
+            template: get_config_value(bt, "template", String::from("")),
+            content_type: get_config_value(bt, "content_type", String::from("application/json")),
+        }))
     }
 
     fn new_node(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node> {

@@ -22,16 +22,13 @@ struct DataKitFilterRootContext {
 
 impl Context for DataKitFilterRootContext {}
 
-fn build_nodes(config: &Config) -> (NodeMap, Vec<String>) {
+fn build_nodes(config: &Config) -> NodeMap {
     let mut nodes = NodeMap::new();
-    let mut node_names = Vec::new();
 
-    for node_config in config.each_node_config() {
-        let name = node_config.get_name();
+    for (name, node_config) in config.each_node_config() {
         match nodes::new_node(node_config) {
             Ok(node) => {
                 nodes.insert(name.to_string(), node);
-                node_names.push(name.to_string());
             }
             Err(err) => {
                 log::error!("{}", err);
@@ -39,7 +36,7 @@ fn build_nodes(config: &Config) -> (NodeMap, Vec<String>) {
         }
     }
 
-    (nodes, node_names)
+    nodes
 }
 
 impl RootContext for DataKitFilterRootContext {
@@ -73,16 +70,17 @@ impl RootContext for DataKitFilterRootContext {
         );
 
         if let Some(config) = &self.config {
-            let (nodes, node_names) = build_nodes(&config);
+            let nodes = build_nodes(&config);
 
             let graph = config.get_graph();
 
             Some(Box::new(DataKitFilter {
-                node_names,
                 nodes: Some(nodes),
+
                 // FIXME: is it possible to do lifetime annotations
-                // to avoid cloning graph every time?
+                // to avoid cloning every time?
                 data: Data::new(graph.clone()),
+                node_names: config.get_node_names().clone(),
 
                 do_request_headers: graph.has_dependents("request_headers"),
                 do_request_body: graph.has_dependents("request_body"),
@@ -164,7 +162,7 @@ impl Context for DataKitFilter {
                 let node: &mut Box<dyn Node> = nodes
                     .get_mut(name)
                     .expect("self.nodes doesn't match self.node_names");
-                if let Some(inputs) = self.data.get_inputs_for(node.get_name(), Some(token_id)) {
+                if let Some(inputs) = self.data.get_inputs_for(name, Some(token_id)) {
                     let state = node.resume(self, inputs);
                     self.data.set(name, state);
                     break;

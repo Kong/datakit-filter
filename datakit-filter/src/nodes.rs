@@ -1,11 +1,7 @@
-use core::slice::Iter;
 use proxy_wasm::traits::*;
-use serde::de::{Error, MapAccess, Visitor};
-use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 use std::any::Any;
 use std::collections::BTreeMap;
-use std::fmt;
 use std::sync::{Mutex, OnceLock};
 
 use crate::data::{Payload, State, State::*};
@@ -28,29 +24,6 @@ pub trait Node {
     fn is_waiting_on(&self, _token_id: u32) -> bool {
         false
     }
-
-    fn get_name(&self) -> &str;
-}
-
-#[derive(Deserialize, Clone, Debug, Default)]
-pub struct Connections {
-    name: String,
-    inputs: Vec<String>,
-    outputs: Vec<String>,
-}
-
-impl Connections {
-    pub fn each_input(&self) -> Iter<String> {
-        self.inputs.iter()
-    }
-
-    pub fn each_output(&self) -> Iter<String> {
-        self.outputs.iter()
-    }
-
-    pub fn get_name(&self) -> &str {
-        &self.name
-    }
 }
 
 pub trait NodeConfig {
@@ -58,17 +31,16 @@ pub trait NodeConfig {
 
     fn get_node_type(&self) -> &'static str;
 
-    fn get_connections(&self) -> &Connections;
-
-    fn get_name(&self) -> &str {
-        &self.get_connections().name
-    }
-
     fn clone_dyn(&self) -> Box<dyn NodeConfig>;
 }
 
 pub trait NodeFactory: Send {
-    fn new_config(&self, bt: BTreeMap<String, Value>, conns: Connections) -> Box<dyn NodeConfig>;
+    fn new_config(
+        &self,
+        name: &str,
+        inputs: &Vec<String>,
+        bt: &BTreeMap<String, Value>,
+    ) -> Result<Box<dyn NodeConfig>, String>;
 
     fn new_node(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node>;
 }
@@ -88,6 +60,19 @@ pub fn register_node(name: &str, factory: Box<dyn NodeFactory>) -> bool {
     true
 }
 
+pub fn new_config(
+    node_type: &str,
+    name: &str,
+    inputs: &Vec<String>,
+    bt: &BTreeMap<String, Value>,
+) -> Result<Box<dyn NodeConfig>, String> {
+    if let Some(nf) = node_types().lock().unwrap().get(node_type) {
+        nf.new_config(name, inputs, bt)
+    } else {
+        Err(format!("no such node type: {}", node_type))
+    }
+}
+
 #[allow(clippy::borrowed_box)]
 pub fn new_node(config: &Box<dyn NodeConfig>) -> Result<Box<dyn Node>, String> {
     let node_type = config.get_node_type();
@@ -95,106 +80,5 @@ pub fn new_node(config: &Box<dyn NodeConfig>) -> Result<Box<dyn Node>, String> {
         Ok(nf.new_node(config))
     } else {
         Err(format!("no such node type: {}", node_type))
-    }
-}
-
-impl<'a> Deserialize<'a> for Box<dyn NodeConfig> {
-    fn deserialize<D>(de: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'a>,
-    {
-        struct DynNodeConfigVisitor;
-
-        impl<'de> Visitor<'de> for DynNodeConfigVisitor {
-            type Value = Box<dyn NodeConfig>;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a DataKit node config")
-            }
-
-            fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
-            where
-                M: MapAccess<'de>,
-            {
-                let mut bt = BTreeMap::new();
-                let mut typ: Option<String> = None;
-                let mut connections: Connections = Default::default();
-                let mut has_name = false;
-                while let Some(key) = map.next_key::<String>()? {
-                    match key.as_str() {
-                        "type" => {
-                            if let Ok(serde_json::Value::String(value)) = map.next_value() {
-                                typ = Some(value);
-                            }
-                        }
-                        "name" => {
-                            if let Ok(serde_json::Value::String(value)) = map.next_value() {
-                                connections.name = value;
-                                has_name = true;
-                            }
-                        }
-                        "input" => {
-                            if let Ok(serde_json::Value::String(value)) = map.next_value() {
-                                connections.inputs.push(value);
-                            }
-                        }
-                        "inputs" => {
-                            if let Ok(values) = map.next_value() {
-                                if let Ok(inputs) = serde_json::from_value::<Vec<String>>(values) {
-                                    connections.inputs = inputs;
-                                }
-                            }
-                        }
-                        "output" => {
-                            if let Ok(serde_json::Value::String(value)) = map.next_value() {
-                                connections.outputs.push(value);
-                            }
-                        }
-                        "outputs" => {
-                            if let Ok(values) = map.next_value() {
-                                if let Ok(outputs) = serde_json::from_value::<Vec<String>>(values) {
-                                    connections.outputs = outputs;
-                                }
-                            }
-                        }
-                        _ => {
-                            if let Ok(value) = map.next_value() {
-                                bt.insert(key, value);
-                            }
-                        }
-                    }
-                }
-
-                if !has_name {
-                    connections.name = format!("{:p}", &connections);
-                }
-
-                if let Some(t) = typ {
-                    if let Some(nf) = node_types().lock().unwrap().get(&t) {
-                        Ok(nf.new_config(bt, connections))
-                    } else {
-                        Err(Error::unknown_variant(&t, &[]))
-                    }
-                } else {
-                    Err(Error::missing_field("type"))
-                }
-            }
-        }
-
-        de.deserialize_map(DynNodeConfigVisitor)
-    }
-}
-
-pub fn get_config_value<T: for<'de> serde::Deserialize<'de>>(
-    bt: &BTreeMap<String, Value>,
-    key: &str,
-    default: T,
-) -> T {
-    match bt.get(key) {
-        Some(v) => match serde_json::from_value(v.clone()) {
-            Ok(s) => s,
-            Err(_) => default,
-        },
-        None => default,
     }
 }
