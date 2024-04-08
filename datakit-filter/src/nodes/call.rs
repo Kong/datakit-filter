@@ -130,10 +130,13 @@ impl Node for Call {
     fn run(&mut self, ctx: &dyn HttpContext, inputs: Vec<Option<&Payload>>) -> State {
         log::debug!("call: run");
 
+        let body = inputs.first().unwrap_or(&None);
+        let headers = inputs.get(1).unwrap_or(&None);
+
         match self.dispatch_call(
             ctx,
-            inputs.first().copied().unwrap_or(None),
-            inputs.get(1).copied().unwrap_or(None),
+            *body,
+            *headers,
         ) {
             Ok(id) => {
                 log::debug!("call: dispatch call id: {:?}", id);
