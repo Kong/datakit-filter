@@ -12,6 +12,7 @@ use crate::data::{Payload, State, State::*};
 
 pub mod call;
 pub mod template;
+pub mod response;
 
 pub trait Node {
     #[allow(clippy::borrowed_box)]

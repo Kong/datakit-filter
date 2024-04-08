@@ -340,6 +340,7 @@ impl HttpContext for DataKitFilter {
 proxy_wasm::main! {{
     nodes::register_node("template", nodes::template::TemplateConfig::from_map, nodes::template::Template::new_box);
     nodes::register_node("call", nodes::call::CallConfig::from_map, nodes::call::Call::new_box);
+    nodes::register_node("response", nodes::response::ResponseConfig::from_map, nodes::response::Response::new_box);
 
     proxy_wasm::set_log_level(LogLevel::Debug);
     proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> {
