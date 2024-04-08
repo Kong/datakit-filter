@@ -1,7 +1,7 @@
 use core::slice::Iter;
 use proxy_wasm::traits::*;
 use serde::de::{Error, MapAccess, Visitor};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 use std::any::Any;
 use std::collections::BTreeMap;
@@ -13,6 +13,8 @@ use crate::data::{Payload, State, State::*};
 pub mod call;
 pub mod response;
 pub mod template;
+
+pub type NodeMap = BTreeMap<String, Box<dyn Node>>;
 
 pub trait Node {
     fn run(&mut self, _ctx: &dyn HttpContext, _inputs: Vec<Option<&Payload>>) -> State {
@@ -30,7 +32,7 @@ pub trait Node {
     fn get_name(&self) -> &str;
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Deserialize, Clone, Debug, Default)]
 pub struct Connections {
     name: String,
     inputs: Vec<String>,
@@ -57,6 +59,10 @@ pub trait NodeConfig {
     fn get_node_type(&self) -> &'static str;
 
     fn get_connections(&self) -> &Connections;
+
+    fn get_name(&self) -> &str {
+        &self.get_connections().name
+    }
 
     fn clone_dyn(&self) -> Box<dyn NodeConfig>;
 }

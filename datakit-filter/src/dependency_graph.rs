@@ -23,10 +23,6 @@ fn add_to(map: &mut BTreeMap<String, Vec<String>>, key: &str, value: &str) {
 }
 
 impl DependencyGraph {
-    pub fn new() -> DependencyGraph {
-        Default::default()
-    }
-
     pub fn add(&mut self, src: &str, dst: &str) {
         add_to(&mut self.dependents, src, dst);
         add_to(&mut self.providers, dst, src);

@@ -1,8 +1,5 @@
-use lazy_static::lazy_static;
 use proxy_wasm::{traits::*, types::*};
-use serde_json_wasm::de;
 use std::collections::BTreeMap;
-use std::collections::HashSet;
 use std::mem;
 
 mod config;
@@ -13,52 +10,24 @@ mod nodes;
 use crate::config::Config;
 use crate::data::{Data, Payload, State};
 use crate::dependency_graph::DependencyGraph;
-use crate::nodes::Node;
+use crate::nodes::{Node, NodeMap};
 
 // -----------------------------------------------------------------------------
 // Root Context
 // -----------------------------------------------------------------------------
 
-lazy_static! {
-    static ref RESERVED_NODE_NAMES: HashSet<&'static str> = [
-        "request_headers",
-        "request_body",
-        "service_request_headers",
-        "service_request_body",
-        "service_response_headers",
-        "service_response_body",
-        "response_headers",
-        "response_body",
-    ]
-    .iter()
-    .copied()
-    .collect();
-}
-
-type NodeMap = BTreeMap<String, Box<dyn Node>>;
-
 struct DataKitFilterRootContext {
     config: Option<Config>,
-    graph: DependencyGraph,
 }
 
 impl Context for DataKitFilterRootContext {}
 
-fn populate_dependency_graph(graph: &mut DependencyGraph, config: &Config) {
-    for node_config in config.each_node_config() {
-        let conns = node_config.get_connections();
-        for input in conns.each_input() {
-            graph.add(input, conns.get_name());
-        }
-        for output in conns.each_output() {
-            graph.add(conns.get_name(), output);
-        }
-    }
-}
+fn build_nodes(config: &Config) -> (NodeMap, Vec<String>) {
+    let mut nodes = NodeMap::new();
+    let mut node_names = Vec::new();
 
-fn build_node_map(nodes: &mut NodeMap, node_names: &mut Vec<String>, config: &Config) {
     for node_config in config.each_node_config() {
-        let name = node_config.get_connections().get_name();
+        let name = node_config.get_name();
         match nodes::new_node(node_config) {
             Ok(node) => {
                 nodes.insert(name.to_string(), node);
@@ -69,44 +38,27 @@ fn build_node_map(nodes: &mut NodeMap, node_names: &mut Vec<String>, config: &Co
             }
         }
     }
+
+    (nodes, node_names)
 }
 
 impl RootContext for DataKitFilterRootContext {
     fn on_configure(&mut self, _config_size: usize) -> bool {
-        if let Some(config_bytes) = self.get_plugin_configuration() {
-            match de::from_slice::<Config>(&config_bytes) {
+        match self.get_plugin_configuration() {
+            Some(config_bytes) => match Config::new(config_bytes) {
                 Ok(config) => {
-                    for node_config in config.each_node_config() {
-                        let name = node_config.get_connections().get_name();
-                        if RESERVED_NODE_NAMES.contains(name) {
-                            log::warn!("on_configure: cannot use reserved node name '{}'", name);
-
-                            return false;
-                        }
-                    }
-
-                    // TODO ensure that input- and output-only restrictions for the
-                    // implicit nodes are respected.
-                    populate_dependency_graph(&mut self.graph, &config);
-
                     self.config = Some(config);
-
                     true
                 }
                 Err(err) => {
-                    log::warn!(
-                        "on_configure: failed parsing configuration: {}: {}",
-                        String::from_utf8(config_bytes).unwrap(),
-                        err
-                    );
-
+                    log::warn!("on_configure: {}", err);
                     false
                 }
+            },
+            None => {
+                log::warn!("on_configure: failed getting configuration");
+                false
             }
-        } else {
-            log::warn!("on_configure: failed getting configuration");
-
-            false
         }
     }
 
@@ -121,25 +73,25 @@ impl RootContext for DataKitFilterRootContext {
         );
 
         if let Some(config) = &self.config {
-            let mut nodes = NodeMap::new();
-            let mut node_names = Vec::new();
-            build_node_map(&mut nodes, &mut node_names, config);
+            let (nodes, node_names) = build_nodes(&config);
+
+            let graph = config.get_graph();
 
             Some(Box::new(DataKitFilter {
                 node_names,
                 nodes: Some(nodes),
                 // FIXME: is it possible to do lifetime annotations
                 // to avoid cloning graph every time?
-                data: Data::new(self.graph.clone()),
+                data: Data::new(graph.clone()),
 
-                do_request_headers: self.graph.has_dependents("request_headers"),
-                do_request_body: self.graph.has_dependents("request_body"),
-                do_service_request_headers: self.graph.has_providers("service_request_headers"),
-                do_service_request_body: self.graph.has_providers("service_request_body"),
-                do_service_response_headers: self.graph.has_dependents("service_response_headers"),
-                do_service_response_body: self.graph.has_dependents("service_response_body"),
-                do_response_headers: self.graph.has_providers("response_headers"),
-                do_response_body: self.graph.has_providers("response_body"),
+                do_request_headers: graph.has_dependents("request_headers"),
+                do_request_body: graph.has_dependents("request_body"),
+                do_service_request_headers: graph.has_providers("service_request_headers"),
+                do_service_request_body: graph.has_providers("service_request_body"),
+                do_service_response_headers: graph.has_dependents("service_response_headers"),
+                do_service_response_body: graph.has_dependents("service_response_body"),
+                do_response_headers: graph.has_providers("response_headers"),
+                do_response_body: graph.has_providers("response_body"),
             }))
         } else {
             None
@@ -345,7 +297,6 @@ proxy_wasm::main! {{
     proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> {
         Box::new(DataKitFilterRootContext {
             config: None,
-            graph: DependencyGraph::new(),
         })
     });
 }}
