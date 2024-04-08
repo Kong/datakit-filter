@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 
 use crate::data::{Payload, State};
 use crate::nodes::Connections;
-use crate::nodes::{get_config_value, Node, NodeConfig};
+use crate::nodes::{get_config_value, Node, NodeConfig, NodeFactory};
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct TemplateConfig {
@@ -33,17 +33,6 @@ impl NodeConfig for TemplateConfig {
     fn get_node_type(&self) -> &'static str {
         "template"
     }
-
-    fn from_map(bt: BTreeMap<String, Value>, connections: Connections) -> Box<dyn NodeConfig>
-    where
-        Self: Sized,
-    {
-        Box::new(TemplateConfig {
-            connections,
-            template: get_config_value(&bt, "template", String::from("")),
-            content_type: get_config_value(&bt, "content_type", String::from("application/json")),
-        })
-    }
 }
 
 #[derive(Clone)]
@@ -52,30 +41,27 @@ pub struct Template<'a> {
     handlebars: Handlebars<'a>,
 }
 
+impl Template<'_> {
+    fn new(config: TemplateConfig) -> Self {
+        let mut hb = Handlebars::new();
+
+        match hb.register_template_string("template", &config.template) {
+            Ok(()) => {}
+            Err(err) => {
+                log::error!("template: error registering template: {}", err);
+            }
+        }
+
+        Template {
+            config,
+            handlebars: hb,
+        }
+    }
+}
+
 impl Node for Template<'_> {
     fn get_name(&self) -> &str {
         &self.config.connections.name
-    }
-
-    fn new_box(config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
-        match config.as_any().downcast_ref::<TemplateConfig>() {
-            Some(cc) => {
-                let mut hb = Handlebars::new();
-
-                match hb.register_template_string("template", &cc.template) {
-                    Ok(()) => {}
-                    Err(err) => {
-                        log::error!("template: error registering template: {}", err);
-                    }
-                }
-
-                Box::new(Template {
-                    config: cc.clone(),
-                    handlebars: hb,
-                })
-            }
-            None => panic!("incompatible NodeConfig"),
-        }
     }
 
     fn run(&mut self, _ctx: &dyn HttpContext, inputs: Vec<Option<&Payload>>) -> State {
@@ -119,5 +105,28 @@ impl Node for Template<'_> {
                 None
             }
         })
+    }
+}
+
+pub struct TemplateFactory {}
+
+impl NodeFactory for TemplateFactory {
+    fn config_from_map(
+        &self,
+        bt: BTreeMap<String, Value>,
+        connections: Connections,
+    ) -> Box<dyn NodeConfig> {
+        Box::new(TemplateConfig {
+            connections,
+            template: get_config_value(&bt, "template", String::from("")),
+            content_type: get_config_value(&bt, "content_type", String::from("application/json")),
+        })
+    }
+
+    fn new_box(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
+        match config.as_any().downcast_ref::<TemplateConfig>() {
+            Some(cc) => Box::new(Template::new(cc.clone())),
+            None => panic!("incompatible NodeConfig"),
+        }
     }
 }

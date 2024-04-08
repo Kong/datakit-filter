@@ -13,7 +13,7 @@ mod nodes;
 use crate::config::Config;
 use crate::data::{Data, Payload, State};
 use crate::dependency_graph::DependencyGraph;
-use crate::nodes::{Node, NodeConfig};
+use crate::nodes::Node;
 
 // -----------------------------------------------------------------------------
 // Root Context
@@ -337,9 +337,9 @@ impl HttpContext for DataKitFilter {
 }
 
 proxy_wasm::main! {{
-    nodes::register_node("template", nodes::template::TemplateConfig::from_map, nodes::template::Template::new_box);
-    nodes::register_node("call", nodes::call::CallConfig::from_map, nodes::call::Call::new_box);
-    nodes::register_node("response", nodes::response::ResponseConfig::from_map, nodes::response::Response::new_box);
+    nodes::register_node("template", Box::new(nodes::template::TemplateFactory {}));
+    nodes::register_node("call", Box::new(nodes::call::CallFactory {}));
+    nodes::register_node("response", Box::new(nodes::response::ResponseFactory {}));
 
     proxy_wasm::set_log_level(LogLevel::Debug);
     proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> {

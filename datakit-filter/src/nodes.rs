@@ -15,11 +15,6 @@ pub mod response;
 pub mod template;
 
 pub trait Node {
-    #[allow(clippy::borrowed_box)]
-    fn new_box(config: &Box<dyn NodeConfig>) -> Box<dyn Node>
-    where
-        Self: Sized;
-
     fn run(&mut self, _ctx: &dyn HttpContext, _inputs: Vec<Option<&Payload>>) -> State {
         Done(None)
     }
@@ -64,32 +59,30 @@ pub trait NodeConfig {
     fn get_connections(&self) -> &Connections;
 
     fn clone_dyn(&self) -> Box<dyn NodeConfig>;
-
-    fn from_map(bt: BTreeMap<String, Value>, connections: Connections) -> Box<dyn NodeConfig>
-    where
-        Self: Sized;
 }
 
-type NodeConfigFromMapFn = fn(BTreeMap<String, Value>, Connections) -> Box<dyn NodeConfig>;
-type NodeNewFn = fn(&Box<dyn NodeConfig>) -> Box<dyn Node>;
+pub trait NodeFactory: Send {
+    fn config_from_map(
+        &self,
+        bt: BTreeMap<String, Value>,
+        connections: Connections,
+    ) -> Box<dyn NodeConfig>;
 
-struct NodeFactory {
-    from_map: NodeConfigFromMapFn,
-    new: NodeNewFn,
+    fn new_box(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node>;
 }
 
-type NodeTypeMap = BTreeMap<String, NodeFactory>;
+type NodeTypeMap = BTreeMap<String, Box<dyn NodeFactory>>;
 
 fn node_types() -> &'static Mutex<NodeTypeMap> {
     static NODE_TYPES: OnceLock<Mutex<NodeTypeMap>> = OnceLock::new();
     NODE_TYPES.get_or_init(|| Mutex::new(BTreeMap::new()))
 }
 
-pub fn register_node(name: &str, from_map: NodeConfigFromMapFn, new: NodeNewFn) -> bool {
+pub fn register_node(name: &str, factory: Box<dyn NodeFactory>) -> bool {
     node_types()
         .lock()
         .unwrap()
-        .insert(String::from(name), NodeFactory { from_map, new });
+        .insert(String::from(name), factory);
     true
 }
 
@@ -97,7 +90,7 @@ pub fn register_node(name: &str, from_map: NodeConfigFromMapFn, new: NodeNewFn) 
 pub fn new_node(config: &Box<dyn NodeConfig>) -> Result<Box<dyn Node>, String> {
     let node_type = config.get_node_type();
     if let Some(nf) = node_types().lock().unwrap().get(node_type) {
-        Ok((nf.new)(config))
+        Ok(nf.new_box(config))
     } else {
         Err(format!("no such node type: {}", node_type))
     }
@@ -176,7 +169,7 @@ impl<'a> Deserialize<'a> for Box<dyn NodeConfig> {
 
                 if let Some(t) = typ {
                     if let Some(nf) = node_types().lock().unwrap().get(&t) {
-                        let v: Self::Value = (nf.from_map)(bt, connections);
+                        let v: Self::Value = nf.config_from_map(bt, connections);
 
                         Ok(v)
                     } else {

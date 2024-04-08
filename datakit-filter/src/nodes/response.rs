@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use crate::data;
 use crate::data::{Payload, State, State::*};
 use crate::nodes::Connections;
-use crate::nodes::{get_config_value, Node, NodeConfig};
+use crate::nodes::{get_config_value, Node, NodeConfig, NodeFactory};
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct ResponseConfig {
@@ -34,16 +34,6 @@ impl NodeConfig for ResponseConfig {
     fn get_node_type(&self) -> &'static str {
         "response"
     }
-
-    fn from_map(bt: BTreeMap<String, Value>, connections: Connections) -> Box<dyn NodeConfig>
-    where
-        Self: Sized,
-    {
-        Box::new(ResponseConfig {
-            connections,
-            status: get_config_value(&bt, "status", 200),
-        })
-    }
 }
 
 #[derive(Clone)]
@@ -52,13 +42,6 @@ pub struct Response {
 }
 
 impl Node for Response {
-    fn new_box(config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
-        match config.as_any().downcast_ref::<ResponseConfig>() {
-            Some(cc) => Box::new(Response { config: cc.clone() }),
-            None => panic!("incompatible NodeConfig"),
-        }
-    }
-
     fn get_name(&self) -> &str {
         &self.config.connections.name
     }
@@ -82,5 +65,27 @@ impl Node for Response {
         );
 
         Done(None)
+    }
+}
+
+pub struct ResponseFactory {}
+
+impl NodeFactory for ResponseFactory {
+    fn config_from_map(
+        &self,
+        bt: BTreeMap<String, Value>,
+        connections: Connections,
+    ) -> Box<dyn NodeConfig> {
+        Box::new(ResponseConfig {
+            connections,
+            status: get_config_value(&bt, "status", 200),
+        })
+    }
+
+    fn new_box(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
+        match config.as_any().downcast_ref::<ResponseConfig>() {
+            Some(cc) => Box::new(Response { config: cc.clone() }),
+            None => panic!("incompatible NodeConfig"),
+        }
     }
 }

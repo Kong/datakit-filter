@@ -10,7 +10,7 @@ use url::Url;
 use crate::data;
 use crate::data::{Payload, State, State::*};
 use crate::nodes::Connections;
-use crate::nodes::{get_config_value, Node, NodeConfig};
+use crate::nodes::{get_config_value, Node, NodeConfig, NodeFactory};
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct CallConfig {
@@ -41,18 +41,6 @@ impl NodeConfig for CallConfig {
     fn get_node_type(&self) -> &'static str {
         "call"
     }
-
-    fn from_map(bt: BTreeMap<String, Value>, connections: Connections) -> Box<dyn NodeConfig>
-    where
-        Self: Sized,
-    {
-        Box::new(CallConfig {
-            connections,
-            url: get_config_value(&bt, "url", String::from("")),
-            method: get_config_value(&bt, "method", String::from("GET")),
-            timeout: get_config_value(&bt, "timeout", 60),
-        })
-    }
 }
 
 #[derive(Clone)]
@@ -63,6 +51,13 @@ pub struct Call {
 }
 
 impl Call {
+    fn new(config: CallConfig) -> Self {
+        Call {
+            config,
+            token_id: None,
+        }
+    }
+
     fn dispatch_call(
         &self,
         ctx: &dyn HttpContext,
@@ -112,16 +107,6 @@ impl Call {
 }
 
 impl Node for Call {
-    fn new_box(config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
-        match config.as_any().downcast_ref::<CallConfig>() {
-            Some(cc) => Box::new(Call {
-                config: cc.clone(),
-                token_id: None,
-            }),
-            None => panic!("incompatible NodeConfig"),
-        }
-    }
-
     fn get_name(&self) -> &str {
         &self.config.connections.name
     }
@@ -163,5 +148,29 @@ impl Node for Call {
 
     fn is_waiting_on(&self, token_id: u32) -> bool {
         self.token_id == Some(token_id)
+    }
+}
+
+pub struct CallFactory {}
+
+impl NodeFactory for CallFactory {
+    fn config_from_map(
+        &self,
+        bt: BTreeMap<String, Value>,
+        connections: Connections,
+    ) -> Box<dyn NodeConfig> {
+        Box::new(CallConfig {
+            connections,
+            url: get_config_value(&bt, "url", String::from("")),
+            method: get_config_value(&bt, "method", String::from("GET")),
+            timeout: get_config_value(&bt, "timeout", 60),
+        })
+    }
+
+    fn new_box(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
+        match config.as_any().downcast_ref::<CallConfig>() {
+            Some(cc) => Box::new(Call::new(cc.clone())),
+            None => panic!("incompatible NodeConfig"),
+        }
     }
 }
