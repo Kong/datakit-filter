@@ -1,0 +1,40 @@
+name: release
+
+on:
+  push:
+    tags:
+    - '*'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  release:
+    runs-on: ubuntu-latest
+    needs: test # don't release unless tests are all passing
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: ./.github/actions/setup
+
+    - name: build
+      run: cargo build --release
+
+    - run: |
+        if ! test -f target/wasm32-wasi/release/datakit_filter.wasm; then
+          echo "missing output binary"
+          exit 1
+        fi
+        cp target/wasm32-wasi/release/datakit_filter.wasm ./
+        cp ./datakit-filter/datakit_filter.meta.json ./
+
+    - uses: ncipollo/release-action@v1
+      with:
+        artifacts: datakit_filter.wasm,datakit_filter.meta.json
+        makeLatest: 'true'
