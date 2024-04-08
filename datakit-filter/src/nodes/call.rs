@@ -1,6 +1,6 @@
 use log;
 use proxy_wasm::{traits::*, types::*};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 use std::any::Any;
 use std::collections::BTreeMap;
@@ -11,7 +11,7 @@ use crate::data::{Payload, State, State::*};
 use crate::nodes::Connections;
 use crate::nodes::{get_config_value, Node, NodeConfig};
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct CallConfig {
     connections: Connections,
 
