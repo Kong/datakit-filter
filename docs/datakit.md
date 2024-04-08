@@ -20,6 +20,14 @@ Each node triggers at most once.
 
 A node only triggers when all its inputs are available.
 
+## Node types
+
+The following node types are implemented:
+
+* `call`: an HTTP dispatch call
+* `template`: application of a string template
+* `response`: trigger a direct response, rather than forwarding a proxied response
+
 ## Implicit nodes
 
 DataKit defines a number of implicit nodes that can be used as inputs or outputs without being
