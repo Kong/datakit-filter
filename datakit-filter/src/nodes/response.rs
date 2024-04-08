@@ -67,9 +67,17 @@ impl Node for Response {
         let body = inputs.first().unwrap_or(&None);
         let headers = inputs.get(1).unwrap_or(&None);
 
+        let mut headers_vec = data::to_pwm_headers(*headers);
+
+        if let Some(payload) = body {
+            if let Some(content_type) = payload.content_type() {
+                headers_vec.push(("Content-Type", content_type));
+            }
+        }
+
         ctx.send_http_response(
             self.config.status,
-            data::to_pwm_headers(*headers),
+            headers_vec,
             data::to_pwm_body(*body).as_deref(),
         );
 
