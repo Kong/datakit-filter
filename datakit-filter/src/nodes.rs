@@ -34,11 +34,11 @@ pub trait NodeFactory: Send {
     fn new_config(
         &self,
         name: &str,
-        inputs: &Vec<String>,
+        inputs: &[String],
         bt: &BTreeMap<String, Value>,
     ) -> Result<Box<dyn NodeConfig>, String>;
 
-    fn new_node(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node>;
+    fn new_node(&self, config: &dyn NodeConfig) -> Box<dyn Node>;
 }
 
 type NodeTypeMap = BTreeMap<String, Box<dyn NodeFactory>>;
@@ -59,7 +59,7 @@ pub fn register_node(name: &str, factory: Box<dyn NodeFactory>) -> bool {
 pub fn new_config(
     node_type: &str,
     name: &str,
-    inputs: &Vec<String>,
+    inputs: &[String],
     bt: &BTreeMap<String, Value>,
 ) -> Result<Box<dyn NodeConfig>, String> {
     if let Some(nf) = node_types().lock().unwrap().get(node_type) {
@@ -69,8 +69,7 @@ pub fn new_config(
     }
 }
 
-#[allow(clippy::borrowed_box)]
-pub fn new_node(node_type: &str, config: &Box<dyn NodeConfig>) -> Result<Box<dyn Node>, String> {
+pub fn new_node(node_type: &str, config: &dyn NodeConfig) -> Result<Box<dyn Node>, String> {
     if let Some(nf) = node_types().lock().unwrap().get(node_type) {
         Ok(nf.new_node(config))
     } else {

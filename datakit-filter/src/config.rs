@@ -202,9 +202,8 @@ impl Config {
 
         for info in &self.node_list {
             let name = &info.name;
-            let node_config = &info.node_config;
 
-            match nodes::new_node(&info.node_type, node_config) {
+            match nodes::new_node(&info.node_type, &*info.node_config) {
                 Ok(node) => {
                     nodes.insert(name.to_string(), node);
                 }

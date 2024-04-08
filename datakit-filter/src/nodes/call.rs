@@ -134,7 +134,7 @@ impl NodeFactory for CallFactory {
     fn new_config(
         &self,
         _name: &str,
-        _inputs: &Vec<String>,
+        _inputs: &[String],
         bt: &BTreeMap<String, Value>,
     ) -> Result<Box<dyn NodeConfig>, String> {
         Ok(Box::new(CallConfig {
@@ -144,7 +144,7 @@ impl NodeFactory for CallFactory {
         }))
     }
 
-    fn new_node(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
+    fn new_node(&self, config: &dyn NodeConfig) -> Box<dyn Node> {
         match config.as_any().downcast_ref::<CallConfig>() {
             Some(cc) => Box::new(Call::new(cc.clone())),
             None => panic!("incompatible NodeConfig"),

@@ -96,17 +96,17 @@ impl NodeFactory for TemplateFactory {
     fn new_config(
         &self,
         _name: &str,
-        inputs: &Vec<String>,
+        inputs: &[String],
         bt: &BTreeMap<String, Value>,
     ) -> Result<Box<dyn NodeConfig>, String> {
         Ok(Box::new(TemplateConfig {
-            inputs: inputs.clone(),
+            inputs: inputs.to_vec(),
             template: get_config_value(bt, "template", String::from("")),
             content_type: get_config_value(bt, "content_type", String::from("application/json")),
         }))
     }
 
-    fn new_node(&self, config: &Box<dyn NodeConfig>) -> Box<dyn Node> {
+    fn new_node(&self, config: &dyn NodeConfig) -> Box<dyn Node> {
         match config.as_any().downcast_ref::<TemplateConfig>() {
             Some(cc) => Box::new(Template::new(cc.clone())),
             None => panic!("incompatible NodeConfig"),
