@@ -66,7 +66,7 @@ impl Call {
     ) -> Result<u32, Status> {
         log::debug!(
             "call: {} - url: {}",
-            self.config.connections.name,
+            self.config.get_name(),
             self.config.url
         );
 
@@ -108,7 +108,7 @@ impl Call {
 
 impl Node for Call {
     fn get_name(&self) -> &str {
-        &self.config.connections.name
+        &self.config.get_name()
     }
 
     fn run(&mut self, ctx: &dyn HttpContext, inputs: Vec<Option<&Payload>>) -> State {

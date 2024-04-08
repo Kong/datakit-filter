@@ -43,7 +43,7 @@ pub struct Response {
 
 impl Node for Response {
     fn get_name(&self) -> &str {
-        &self.config.connections.name
+        &self.config.get_name()
     }
 
     fn run(&mut self, ctx: &dyn HttpContext, inputs: Vec<Option<&Payload>>) -> State {
