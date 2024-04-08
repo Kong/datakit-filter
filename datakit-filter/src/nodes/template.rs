@@ -79,7 +79,7 @@ impl Node for Template<'_> {
     }
 
     fn run(&mut self, _ctx: &dyn HttpContext, inputs: Vec<Option<&Payload>>) -> State {
-        log::info!("Template: run - inputs: {:?}", inputs);
+        log::debug!("template: run - inputs: {:?}", inputs);
 
         let mut vs = Vec::new();
         let mut data = BTreeMap::new();

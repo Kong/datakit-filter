@@ -1,6 +1,4 @@
 use lazy_static::lazy_static;
-use log::info;
-use log::warn;
 use proxy_wasm::{traits::*, types::*};
 use serde_json_wasm::de;
 use std::collections::BTreeMap;
@@ -81,7 +79,7 @@ impl RootContext for DataKitFilterRootContext {
                     for node_config in config.each_node_config() {
                         let name = node_config.get_connections().get_name();
                         if RESERVED_NODE_NAMES.contains(name) {
-                            warn!("on_configure: cannot use reserved node name '{}'", name);
+                            log::warn!("on_configure: cannot use reserved node name '{}'", name);
 
                             return false;
                         }
@@ -96,7 +94,7 @@ impl RootContext for DataKitFilterRootContext {
                     true
                 }
                 Err(err) => {
-                    warn!(
+                    log::warn!(
                         "on_configure: failed parsing configuration: {}: {}",
                         String::from_utf8(config_bytes).unwrap(),
                         err
@@ -106,7 +104,7 @@ impl RootContext for DataKitFilterRootContext {
                 }
             }
         } else {
-            warn!("on_configure: failed getting configuration");
+            log::warn!("on_configure: failed getting configuration");
 
             false
         }
@@ -117,7 +115,10 @@ impl RootContext for DataKitFilterRootContext {
     }
 
     fn create_http_context(&self, context_id: u32) -> Option<Box<dyn HttpContext>> {
-        info!("Context id: {}", context_id);
+        log::debug!(
+            "DataKitFilterRootContext: create http context id: {}",
+            context_id
+        );
 
         if let Some(config) = &self.config {
             let mut nodes = NodeMap::new();
@@ -204,7 +205,7 @@ impl Context for DataKitFilter {
         _body_size: usize,
         _num_trailers: usize,
     ) {
-        log::info!("DataKitFilter: on http call response, id = {:?}", token_id);
+        log::debug!("DataKitFilter: on http call response, id = {:?}", token_id);
 
         if let Some(mut nodes) = mem::take(&mut self.nodes) {
             for name in &self.node_names {

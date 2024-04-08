@@ -68,7 +68,7 @@ impl Call {
         body: Option<&Payload>,
         headers: Option<&Payload>,
     ) -> Result<u32, Status> {
-        log::info!(
+        log::debug!(
             "call: {} - url: {}",
             self.config.connections.name,
             self.config.url
@@ -128,7 +128,7 @@ impl Node for Call {
     }
 
     fn run(&mut self, ctx: &dyn HttpContext, inputs: Vec<Option<&Payload>>) -> State {
-        log::info!("Call: on http request headers");
+        log::debug!("call: run");
 
         match self.dispatch_call(
             ctx,
@@ -136,7 +136,7 @@ impl Node for Call {
             inputs.get(1).copied().unwrap_or(None),
         ) {
             Ok(id) => {
-                log::info!("call: dispatch call id: {:?}", id);
+                log::debug!("call: dispatch call id: {:?}", id);
                 self.token_id = Some(id);
                 return Waiting(id);
             }
@@ -149,7 +149,7 @@ impl Node for Call {
     }
 
     fn resume(&mut self, ctx: &dyn HttpContext, _inputs: Vec<Option<&Payload>>) -> State {
-        log::info!("call: on http call response");
+        log::debug!("call: resume");
 
         let r = if let Some(body) = ctx.get_http_call_response_body(0, usize::MAX) {
             Payload::from_bytes(
