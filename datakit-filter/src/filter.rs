@@ -270,7 +270,12 @@ impl HttpContext for DataKitFilter {
 
         let action = self.run_nodes();
 
-        // TODO service_request_headers
+        if self.do_service_request_headers {
+            if let Some(payload) = self.data.first_input_for("service_request_headers", None) {
+                let headers = data::to_pwm_headers(Some(payload));
+                self.set_http_request_headers(headers);
+            }
+        }
 
         if self.do_service_request_body {
             if let Some(inputs) = self.data.get_inputs_for("service_request_body", None) {
@@ -293,7 +298,12 @@ impl HttpContext for DataKitFilter {
 
         let action = self.run_nodes();
 
-        // TODO response_headers
+        if self.do_response_headers {
+            if let Some(payload) = self.data.first_input_for("response_headers", None) {
+                let headers = data::to_pwm_headers(Some(payload));
+                self.set_http_response_headers(headers);
+            }
+        }
 
         if self.do_response_body {
             if let Some(inputs) = self.data.get_inputs_for("response_body", None) {
