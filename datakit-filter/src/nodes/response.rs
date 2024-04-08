@@ -19,14 +19,6 @@ impl NodeConfig for ResponseConfig {
     fn as_any(&self) -> &dyn Any {
         self
     }
-
-    fn clone_dyn(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-
-    fn get_node_type(&self) -> &'static str {
-        "response"
-    }
 }
 
 #[derive(Clone)]

@@ -1,5 +1,5 @@
 use crate::nodes;
-use crate::nodes::NodeConfig;
+use crate::nodes::{NodeConfig, NodeMap};
 use crate::DependencyGraph;
 use lazy_static::lazy_static;
 use serde::de::{Error, MapAccess, Visitor};
@@ -125,8 +125,14 @@ pub struct UserConfig {
     nodes: Vec<UserNodeConfig>,
 }
 
+struct NodeInfo {
+    name: String,
+    node_type: String,
+    node_config: Box<dyn NodeConfig>,
+}
+
 pub struct Config {
-    nodes: Vec<Box<dyn NodeConfig>>,
+    node_list: Vec<NodeInfo>,
     node_names: Vec<String>,
     graph: DependencyGraph,
 }
@@ -135,6 +141,7 @@ impl Config {
     pub fn new(config_bytes: Vec<u8>) -> Result<Config, String> {
         match de::from_slice::<UserConfig>(&config_bytes) {
             Ok(user_config) => {
+                let mut node_list = Vec::new();
                 let mut node_names = Vec::new();
                 let mut graph: DependencyGraph = Default::default();
 
@@ -154,12 +161,14 @@ impl Config {
                     }
                 }
 
-                let mut node_configs = vec![];
-
                 for unc in &user_config.nodes {
                     let inputs = graph.get_input_names(&unc.name);
                     match nodes::new_config(&unc.node_type, &unc.name, inputs, &unc.bt) {
-                        Ok(nc) => node_configs.push(nc),
+                        Ok(nc) => node_list.push(NodeInfo {
+                            name: unc.name.to_string(),
+                            node_type: unc.node_type.to_string(),
+                            node_config: nc,
+                        }),
                         Err(err) => {
                             return Err(err);
                         }
@@ -167,7 +176,7 @@ impl Config {
                 }
 
                 Ok(Config {
-                    nodes: node_configs,
+                    node_list,
                     node_names,
                     graph,
                 })
@@ -180,17 +189,32 @@ impl Config {
         }
     }
 
-    /// An iterator of immutable references to Nodes
-    pub fn each_node_config(&self) -> impl Iterator<Item = (&String, &Box<dyn NodeConfig>)> {
-        std::iter::zip(self.node_names.iter(), self.nodes.iter()).into_iter()
-    }
-
     pub fn get_node_names(&self) -> &Vec<String> {
         &self.node_names
     }
 
     pub fn get_graph(&self) -> &DependencyGraph {
         &self.graph
+    }
+
+    pub fn build_nodes(&self) -> NodeMap {
+        let mut nodes = NodeMap::new();
+
+        for info in &self.node_list {
+            let name = &info.name;
+            let node_config = &info.node_config;
+
+            match nodes::new_node(&info.node_type, node_config) {
+                Ok(node) => {
+                    nodes.insert(name.to_string(), node);
+                }
+                Err(err) => {
+                    log::error!("{}", err);
+                }
+            }
+        }
+
+        nodes
     }
 }
 

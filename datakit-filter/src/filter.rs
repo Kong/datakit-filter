@@ -22,23 +22,6 @@ struct DataKitFilterRootContext {
 
 impl Context for DataKitFilterRootContext {}
 
-fn build_nodes(config: &Config) -> NodeMap {
-    let mut nodes = NodeMap::new();
-
-    for (name, node_config) in config.each_node_config() {
-        match nodes::new_node(node_config) {
-            Ok(node) => {
-                nodes.insert(name.to_string(), node);
-            }
-            Err(err) => {
-                log::error!("{}", err);
-            }
-        }
-    }
-
-    nodes
-}
-
 impl RootContext for DataKitFilterRootContext {
     fn on_configure(&mut self, _config_size: usize) -> bool {
         match self.get_plugin_configuration() {
@@ -70,7 +53,7 @@ impl RootContext for DataKitFilterRootContext {
         );
 
         if let Some(config) = &self.config {
-            let nodes = build_nodes(&config);
+            let nodes = config.build_nodes();
 
             let graph = config.get_graph();
 

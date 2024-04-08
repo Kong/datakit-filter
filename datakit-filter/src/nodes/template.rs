@@ -19,14 +19,6 @@ impl NodeConfig for TemplateConfig {
     fn as_any(&self) -> &dyn Any {
         self
     }
-
-    fn clone_dyn(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-
-    fn get_node_type(&self) -> &'static str {
-        "template"
-    }
 }
 
 #[derive(Clone)]

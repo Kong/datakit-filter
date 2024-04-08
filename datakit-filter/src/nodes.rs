@@ -28,10 +28,6 @@ pub trait Node {
 
 pub trait NodeConfig {
     fn as_any(&self) -> &dyn Any;
-
-    fn get_node_type(&self) -> &'static str;
-
-    fn clone_dyn(&self) -> Box<dyn NodeConfig>;
 }
 
 pub trait NodeFactory: Send {
@@ -74,8 +70,7 @@ pub fn new_config(
 }
 
 #[allow(clippy::borrowed_box)]
-pub fn new_node(config: &Box<dyn NodeConfig>) -> Result<Box<dyn Node>, String> {
-    let node_type = config.get_node_type();
+pub fn new_node(node_type: &str, config: &Box<dyn NodeConfig>) -> Result<Box<dyn Node>, String> {
     if let Some(nf) = node_types().lock().unwrap().get(node_type) {
         Ok(nf.new_node(config))
     } else {
