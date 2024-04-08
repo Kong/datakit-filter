@@ -1,5 +1,5 @@
 use log;
-use proxy_wasm::{traits::*, types::*};
+use proxy_wasm::traits::*;
 use serde_json::Value;
 use std::any::Any;
 use std::collections::BTreeMap;
@@ -35,58 +35,6 @@ pub struct Call {
     token_id: Option<u32>,
 }
 
-impl Call {
-    fn new(config: CallConfig) -> Self {
-        Call {
-            config,
-            token_id: None,
-        }
-    }
-
-    fn dispatch_call(
-        &self,
-        ctx: &dyn HttpContext,
-        body: Option<&Payload>,
-        headers: Option<&Payload>,
-    ) -> Result<u32, Status> {
-        log::debug!("call: url: {}", self.config.url);
-
-        let call_url = Url::parse(self.config.url.as_str()).map_err(|r| {
-            log::error!("call: failed parsing URL from 'url' field: {}", r);
-            Status::BadArgument
-        })?;
-
-        let host = match call_url.host_str() {
-            Some(h) => Ok(h),
-            None => {
-                log::error!("call: failed getting host from URL");
-                Err(Status::BadArgument)
-            }
-        }?;
-
-        let mut headers_vec = data::to_pwm_headers(headers);
-        headers_vec.push((":method", self.config.method.as_str()));
-        headers_vec.push((":path", call_url.path()));
-
-        let body_slice = data::to_pwm_body(body);
-
-        let trailers = vec![];
-        let timeout = Duration::from_secs(self.config.timeout.into());
-
-        let sch_host_port = match call_url.port() {
-            Some(port) => format!("{}:{}", host, port),
-            None => host.to_owned(),
-        };
-        ctx.dispatch_http_call(
-            &sch_host_port,
-            headers_vec,
-            body_slice.as_deref(),
-            trailers,
-            timeout,
-        )
-    }
-}
-
 impl Node for Call {
     fn run(&mut self, ctx: &dyn HttpContext, inputs: Vec<Option<&Payload>>) -> State {
         log::debug!("call: run");
@@ -94,28 +42,64 @@ impl Node for Call {
         let body = inputs.first().unwrap_or(&None);
         let headers = inputs.get(1).unwrap_or(&None);
 
-        match self.dispatch_call(ctx, *body, *headers) {
+        let call_url = match Url::parse(self.config.url.as_str()) {
+            Ok(u) => u,
+            Err(err) => {
+                log::error!("call: failed parsing URL from 'url' field: {}", err);
+                return Done(None);
+            }
+        };
+
+        let host = match call_url.host_str() {
+            Some(h) => h,
+            None => {
+                log::error!("call: failed getting host from URL");
+                return Done(None);
+            }
+        };
+
+        let mut headers_vec = data::to_pwm_headers(*headers);
+        headers_vec.push((":method", self.config.method.as_str()));
+        headers_vec.push((":path", call_url.path()));
+
+        let body_slice = data::to_pwm_body(*body);
+
+        let trailers = vec![];
+        let timeout = Duration::from_secs(self.config.timeout.into());
+
+        let host_port = match call_url.port() {
+            Some(port) => format!("{}:{}", host, port),
+            None => host.to_owned(),
+        };
+
+        let result = ctx.dispatch_http_call(
+            &host_port,
+            headers_vec,
+            body_slice.as_deref(),
+            trailers,
+            timeout,
+        );
+
+        match result {
             Ok(id) => {
                 log::debug!("call: dispatch call id: {:?}", id);
                 self.token_id = Some(id);
-                return Waiting(id);
+                Waiting(id)
             }
             Err(status) => {
                 log::error!("call: error: {:?}", status);
+                Done(None)
             }
         }
-
-        Done(None)
     }
 
     fn resume(&mut self, ctx: &dyn HttpContext, _inputs: Vec<Option<&Payload>>) -> State {
         log::debug!("call: resume");
 
         let r = if let Some(body) = ctx.get_http_call_response_body(0, usize::MAX) {
-            Payload::from_bytes(
-                body,
-                ctx.get_http_call_response_header("Content-Type").as_deref(),
-            )
+            let content_type = ctx.get_http_call_response_header("Content-Type");
+
+            Payload::from_bytes(body, content_type.as_deref())
         } else {
             None
         };
@@ -146,7 +130,10 @@ impl NodeFactory for CallFactory {
 
     fn new_node(&self, config: &dyn NodeConfig) -> Box<dyn Node> {
         match config.as_any().downcast_ref::<CallConfig>() {
-            Some(cc) => Box::new(Call::new(cc.clone())),
+            Some(cc) => Box::new(Call {
+                config: cc.clone(),
+                token_id: None,
+            }),
             None => panic!("incompatible NodeConfig"),
         }
     }
