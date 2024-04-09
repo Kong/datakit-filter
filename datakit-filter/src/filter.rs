@@ -342,6 +342,7 @@ proxy_wasm::main! {{
     nodes::register_node("template", Box::new(nodes::template::TemplateFactory {}));
     nodes::register_node("call", Box::new(nodes::call::CallFactory {}));
     nodes::register_node("response", Box::new(nodes::response::ResponseFactory {}));
+    nodes::register_node("jq", Box::new(nodes::jq::JqFactory {}));
 
     proxy_wasm::set_log_level(LogLevel::Debug);
     proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> {

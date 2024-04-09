@@ -19,3 +19,7 @@ serde = { version = "*", features = ["derive"] }
 lazy_static = "*"
 "url" = "2.5.0"
 handlebars = "5.1.0"
+jaq-interpret = "1.2.1"
+jaq-parse = "1.0.2"
+jaq-core = "1.2.1"
+jaq-std = "1.2.1"
