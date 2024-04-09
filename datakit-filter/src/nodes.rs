@@ -7,6 +7,7 @@ use std::sync::{Mutex, OnceLock};
 use crate::data::{Payload, State, State::*};
 
 pub mod call;
+pub mod jq;
 pub mod response;
 pub mod template;
 
