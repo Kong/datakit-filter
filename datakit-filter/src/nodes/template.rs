@@ -79,7 +79,7 @@ impl Node for Template<'_> {
 
         State::Done(match self.handlebars.render("template", &data) {
             Ok(output) => {
-                log::error!("output: {}", output);
+                log::debug!("output: {}", output);
                 Payload::from_bytes(output.into(), Some(&self.config.content_type))
             }
             Err(err) => {
