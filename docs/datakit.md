@@ -52,4 +52,20 @@ or arrays of strings if there are multiple instances of the same header.
 The `_body` nodes produce either raw strings or JSON objects, depending on their corresponding
 `Content-Type` values.
 
+## Debugging
+
+DataKit includes support for debugging your configuration.
+
+### Execution tracing
+
+By setting the `X-DataKit-Debug-Trace` header, DataKit records the execution
+flow and the values of intermediate nodes, reporting the output in the request
+body in JSON format.
+
+If the debug header value is set to `0`, `false`, or `off`, this is equivalent to
+unsetting the debug header: tracing will not happen and execution will run
+as normal. Any other value will enable debug tracing.
+
+---
+
 [serde-json]: https://docs.rs/serde_json/latest/serde_json/

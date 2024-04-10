@@ -123,6 +123,8 @@ impl<'a> Deserialize<'a> for UserNodeConfig {
 #[derive(Deserialize, Default)]
 pub struct UserConfig {
     nodes: Vec<UserNodeConfig>,
+    #[serde(default)]
+    debug: bool,
 }
 
 struct NodeInfo {
@@ -135,6 +137,7 @@ pub struct Config {
     node_list: Vec<NodeInfo>,
     node_names: Vec<String>,
     graph: DependencyGraph,
+    debug: bool,
 }
 
 impl Config {
@@ -179,6 +182,7 @@ impl Config {
                     node_list,
                     node_names,
                     graph,
+                    debug: user_config.debug,
                 })
             }
             Err(err) => Err(format!(
@@ -189,8 +193,18 @@ impl Config {
         }
     }
 
+    pub fn debug(&self) -> bool {
+        self.debug
+    }
+
     pub fn get_node_names(&self) -> &Vec<String> {
         &self.node_names
+    }
+
+    pub fn node_types(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.node_list
+            .iter()
+            .map(|info| (info.name.as_ref(), info.node_type.as_ref()))
     }
 
     pub fn get_graph(&self) -> &DependencyGraph {

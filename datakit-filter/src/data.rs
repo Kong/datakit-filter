@@ -37,6 +37,19 @@ impl Payload {
         }
     }
 
+    pub fn to_json(&self) -> Result<serde_json::Value, ()> {
+        match &self {
+            Payload::Json(value) => Ok(value.clone()),
+            Payload::Raw(vec) => {
+                if let Ok(s) = std::str::from_utf8(vec) {
+                    return serde_json::to_value(s).or(Err(()));
+                }
+
+                Err(())
+            }
+        }
+    }
+
     pub fn to_bytes(&self) -> Vec<u8> {
         match &self {
             Payload::Json(value) => {
