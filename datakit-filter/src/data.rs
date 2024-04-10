@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 use crate::dependency_graph::DependencyGraph;
@@ -93,6 +94,36 @@ impl Payload {
             }
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+enum StringOrVec {
+    String(String),
+    Vec(Vec<String>),
+}
+
+pub fn from_pwm_headers(vec: Vec<(String, String)>) -> Payload {
+    let mut map = BTreeMap::new();
+    for (k, v) in vec {
+        let lk = k.to_lowercase();
+        if let Some(vs) = map.get_mut(&lk) {
+            match vs {
+                StringOrVec::String(s) => {
+                    let ss = s.to_string();
+                    map.insert(lk, StringOrVec::Vec(vec![ss, v]));
+                }
+                StringOrVec::Vec(vs) => {
+                    vs.push(v);
+                }
+            };
+        } else {
+            map.insert(lk, StringOrVec::String(v));
+        }
+    }
+
+    let value = serde_json::to_value(map).expect("serializable map");
+    Payload::Json(value)
 }
 
 pub fn to_pwm_headers(payload: Option<&Payload>) -> Vec<(&str, &str)> {

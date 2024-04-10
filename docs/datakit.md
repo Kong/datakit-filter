@@ -46,9 +46,10 @@ explicitly declared. These reserved node names cannot be used for user-defined n
 
 The `_headers` nodes produce maps from header names to their values.
 Keys are header names are normalized to lowercase.
-Values are always an array of strings, even when there is a single header value.
+Values are strings if there is a single instance of a header,
+or arrays of strings if there are multiple instances of the same header.
 
-The `_body` nodes produce either raw strings of JSON objects, depending on their corresponding
+The `_body` nodes produce either raw strings or JSON objects, depending on their corresponding
 `Content-Type` values.
 
 [serde-json]: https://docs.rs/serde_json/latest/serde_json/

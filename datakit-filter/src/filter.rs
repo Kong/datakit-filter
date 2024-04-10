@@ -1,5 +1,4 @@
 use proxy_wasm::{traits::*, types::*};
-use std::collections::BTreeMap;
 use std::mem;
 
 mod config;
@@ -159,26 +158,8 @@ impl Context for DataKitFilter {
     }
 }
 
-fn vec_of_pairs_to_map_of_vecs<V>(vec: Vec<(String, V)>) -> BTreeMap<String, Vec<V>> {
-    let mut map = BTreeMap::<String, Vec<V>>::new();
-    for (k, v) in vec {
-        let lk = k.to_lowercase();
-        match map.get_mut(&lk) {
-            Some(vs) => {
-                vs.push(v);
-            }
-            None => {
-                map.insert(lk, vec![v]);
-            }
-        };
-    }
-    map
-}
-
 fn set_headers_node(data: &mut Data, vec: Vec<(String, String)>, name: &str) {
-    let map = vec_of_pairs_to_map_of_vecs(vec);
-    let value = serde_json::to_value(map).expect("serializable map");
-    let payload = Payload::Json(value);
+    let payload = data::from_pwm_headers(vec);
     data.set(name, State::Done(Some(payload)));
 }
 
