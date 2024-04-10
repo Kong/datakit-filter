@@ -260,9 +260,11 @@ impl HttpContext for DataKitFilter {
 
         let action = self.run_nodes();
 
-        if let Some(payload) = self.data.first_input_for("response_body", None) {
-            let bytes = payload.to_bytes();
-            self.set_http_response_body(0, bytes.len(), &bytes);
+        if self.do_response_body {
+            if let Some(payload) = self.data.first_input_for("response_body", None) {
+                let bytes = payload.to_bytes();
+                self.set_http_response_body(0, bytes.len(), &bytes);
+            }
         }
 
         action
