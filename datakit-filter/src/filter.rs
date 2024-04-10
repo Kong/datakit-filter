@@ -3,11 +3,13 @@ use std::mem;
 
 mod config;
 mod data;
+mod debug;
 mod dependency_graph;
 mod nodes;
 
 use crate::config::Config;
 use crate::data::{Data, Payload, State};
+use crate::debug::{Debug, RunMode};
 use crate::dependency_graph::DependencyGraph;
 use crate::nodes::{Node, NodeMap};
 
@@ -56,8 +58,16 @@ impl RootContext for DataKitFilterRootContext {
 
             let graph = config.get_graph();
 
+            let debug = if config.debug() {
+                Some(Debug::new(config))
+            } else {
+                None
+            };
+
             Some(Box::new(DataKitFilter {
                 nodes: Some(nodes),
+
+                debug,
 
                 // FIXME: is it possible to do lifetime annotations
                 // to avoid cloning every time?
@@ -87,6 +97,7 @@ pub struct DataKitFilter {
     node_names: Vec<String>,
     nodes: Option<NodeMap>,
     data: Data,
+    debug: Option<Debug>,
     do_request_headers: bool,
     do_request_body: bool,
     do_service_request_headers: bool,
@@ -97,7 +108,55 @@ pub struct DataKitFilter {
     do_response_body: bool,
 }
 
+fn header_to_bool(header_value: &Option<String>) -> bool {
+    match header_value {
+        Some(val) => val != "off" && val != "false" && val != "0",
+        None => false,
+    }
+}
+
 impl DataKitFilter {
+    fn debug_init(&mut self) {
+        let trace_header = &self.get_http_request_header("X-DataKit-Debug-Trace");
+        if header_to_bool(trace_header) {
+            if let Some(ref mut debug) = self.debug {
+                debug.set_tracing(true);
+            }
+            self.do_response_body = true;
+        }
+    }
+
+    fn debug_done_headers(&mut self) {
+        if let Some(ref mut debug) = self.debug {
+            if debug.is_tracing() {
+                self.set_http_response_header("Content-Length", None);
+                self.set_http_response_header("Content-Encoding", None);
+            }
+        }
+    }
+
+    fn debug_done(&mut self) {
+        if let Some(ref mut debug) = self.debug {
+            if debug.is_tracing() {
+                let trace = debug.get_trace();
+                let bytes = trace.as_bytes();
+                self.set_http_response_body(0, bytes.len(), bytes);
+            }
+        }
+    }
+
+    fn set_data(&mut self, name: &str, state: State) {
+        if let Some(ref mut debug) = self.debug {
+            debug.set_data(name, &state);
+        }
+        self.data.set(name, state);
+    }
+
+    fn set_headers_data(&mut self, vec: Vec<(String, String)>, name: &str) {
+        let payload = data::from_pwm_headers(vec);
+        self.set_data(name, State::Done(Some(payload)));
+    }
+
     fn run_nodes(&mut self) -> Action {
         let mut ret = Action::Continue;
 
@@ -112,6 +171,10 @@ impl DataKitFilter {
                         any_ran = true;
 
                         let state = node.run(self, &inputs);
+
+                        if let Some(ref mut debug) = self.debug {
+                            debug.run(name, &inputs, &state, RunMode::Run);
+                        }
 
                         if let State::Waiting(_) = state {
                             ret = Action::Pause;
@@ -149,6 +212,10 @@ impl Context for DataKitFilter {
                 if let Some(inputs) = self.data.get_inputs_for(name, Some(token_id)) {
                     let state = node.resume(self, &inputs);
 
+                    if let Some(ref mut debug) = self.debug {
+                        debug.run(name, &inputs, &state, RunMode::Resume);
+                    }
+
                     self.data.set(name, state);
                     break;
                 }
@@ -161,16 +228,15 @@ impl Context for DataKitFilter {
     }
 }
 
-fn set_headers_node(data: &mut Data, vec: Vec<(String, String)>, name: &str) {
-    let payload = data::from_pwm_headers(vec);
-    data.set(name, State::Done(Some(payload)));
-}
-
 impl HttpContext for DataKitFilter {
     fn on_http_request_headers(&mut self, _nheaders: usize, _eof: bool) -> Action {
+        if self.debug.is_some() {
+            self.debug_init()
+        }
+
         if self.do_request_headers {
             let vec = self.get_http_request_headers();
-            set_headers_node(&mut self.data, vec, "request_headers");
+            self.set_headers_data(vec, "request_headers");
         }
 
         self.run_nodes()
@@ -181,7 +247,7 @@ impl HttpContext for DataKitFilter {
             if let Some(bytes) = self.get_http_request_body(0, body_size) {
                 let content_type = self.get_http_request_header("Content-Type");
                 let body_payload = Payload::from_bytes(bytes, content_type.as_deref());
-                self.data.set("request_body", State::Done(body_payload));
+                self.set_data("request_body", State::Done(body_payload));
             }
         }
 
@@ -207,7 +273,7 @@ impl HttpContext for DataKitFilter {
     fn on_http_response_headers(&mut self, _nheaders: usize, _eof: bool) -> Action {
         if self.do_service_response_headers {
             let vec = self.get_http_response_headers();
-            set_headers_node(&mut self.data, vec, "service_response_headers");
+            self.set_headers_data(vec, "service_response_headers");
         }
 
         let action = self.run_nodes();
@@ -230,6 +296,10 @@ impl HttpContext for DataKitFilter {
             }
         }
 
+        if self.debug.is_some() {
+            self.debug_done_headers()
+        }
+
         action
     }
 
@@ -238,7 +308,7 @@ impl HttpContext for DataKitFilter {
             if let Some(bytes) = self.get_http_response_body(0, body_size) {
                 let content_type = self.get_http_response_header("Content-Type");
                 let payload = Payload::from_bytes(bytes, content_type.as_deref());
-                self.data.set("service_response_body", State::Done(payload));
+                self.set_data("service_response_body", State::Done(payload));
             }
         }
 
@@ -248,7 +318,17 @@ impl HttpContext for DataKitFilter {
             if let Some(payload) = self.data.first_input_for("response_body", None) {
                 let bytes = payload.to_bytes();
                 self.set_http_response_body(0, bytes.len(), &bytes);
+            } else if self.debug.is_some() {
+                if let Some(bytes) = self.get_http_response_body(0, body_size) {
+                    let content_type = self.get_http_response_header("Content-Type");
+                    let payload = Payload::from_bytes(bytes, content_type.as_deref());
+                    self.set_data("response_body", State::Done(payload));
+                }
             }
+        }
+
+        if self.debug.is_some() {
+            self.debug_done()
         }
 
         action
