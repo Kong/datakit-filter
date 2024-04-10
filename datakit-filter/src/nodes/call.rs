@@ -36,7 +36,7 @@ pub struct Call {
 }
 
 impl Node for Call {
-    fn run(&mut self, ctx: &dyn HttpContext, inputs: Vec<Option<&Payload>>) -> State {
+    fn run(&mut self, ctx: &dyn HttpContext, inputs: &[Option<&Payload>]) -> State {
         log::debug!("call: run");
 
         let body = inputs.first().unwrap_or(&None);
@@ -93,7 +93,7 @@ impl Node for Call {
         }
     }
 
-    fn resume(&mut self, ctx: &dyn HttpContext, _inputs: Vec<Option<&Payload>>) -> State {
+    fn resume(&mut self, ctx: &dyn HttpContext, _inputs: &[Option<&Payload>]) -> State {
         log::debug!("call: resume");
 
         let r = if let Some(body) = ctx.get_http_call_response_body(0, usize::MAX) {
