@@ -13,11 +13,11 @@ pub mod template;
 pub type NodeMap = BTreeMap<String, Box<dyn Node>>;
 
 pub trait Node {
-    fn run(&mut self, _ctx: &dyn HttpContext, _inputs: Vec<Option<&Payload>>) -> State {
+    fn run(&mut self, _ctx: &dyn HttpContext, _inputs: &[Option<&Payload>]) -> State {
         Done(None)
     }
 
-    fn resume(&mut self, _ctx: &dyn HttpContext, _inputs: Vec<Option<&Payload>>) -> State {
+    fn resume(&mut self, _ctx: &dyn HttpContext, _inputs: &[Option<&Payload>]) -> State {
         Done(None)
     }
 
