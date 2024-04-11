@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::data::{Payload, State};
 use serde::Serialize;
+use serde_json::Value;
 use std::collections::HashMap;
 
 pub enum RunMode {
@@ -11,6 +12,7 @@ pub enum RunMode {
 pub enum DataMode {
     Done,
     Waiting,
+    Fail,
 }
 
 struct RunOperation {
@@ -23,7 +25,7 @@ struct SetOperation {
     node_name: String,
     data_type: String,
     status: DataMode,
-    value: Option<serde_json::Value>,
+    value: Option<Value>,
 }
 
 enum Operation {
@@ -35,6 +37,7 @@ pub struct Debug {
     trace: bool,
     operations: Vec<Operation>,
     node_types: HashMap<String, String>,
+    orig_response_body_content_type: Option<String>,
 }
 
 impl State {
@@ -42,7 +45,21 @@ impl State {
         match self {
             State::Done(_) => DataMode::Done,
             State::Waiting(_) => DataMode::Waiting,
+            State::Fail(_) => DataMode::Fail,
         }
+    }
+}
+
+fn payload_to_op_info(p: &Option<Payload>, default_type: &str) -> (String, Option<Value>) {
+    if let Some(payload) = p {
+        let dt = payload.content_type().unwrap_or(default_type).to_string();
+
+        match payload.to_json() {
+            Ok(v) => (dt, Some(v)),
+            Err(e) => ("fail".to_string(), Some(serde_json::json!(e))),
+        }
+    } else {
+        ("none".to_string(), None)
     }
 }
 
@@ -57,23 +74,16 @@ impl Debug {
             node_types,
             trace: false,
             operations: vec![],
+            orig_response_body_content_type: None,
         }
     }
 
     pub fn set_data(&mut self, name: &str, state: &State) {
         if self.trace {
             let (data_type, value) = match state {
-                State::Done(d) => {
-                    if let Some(p) = d {
-                        let dt = p.content_type().unwrap_or("raw").to_string();
-                        let v = p.to_json().ok();
-
-                        (dt, v)
-                    } else {
-                        ("none".to_string(), None)
-                    }
-                }
+                State::Done(p) => payload_to_op_info(p, "raw"),
                 State::Waiting(_) => ("waiting".to_string(), None),
+                State::Fail(p) => payload_to_op_info(p, "fail"),
             };
 
             self.operations.push(Operation::Set(SetOperation {
@@ -99,6 +109,14 @@ impl Debug {
         }
     }
 
+    pub fn save_response_body_content_type(&mut self, ct: Option<String>) {
+        self.orig_response_body_content_type = ct;
+    }
+
+    pub fn response_body_content_type(&self) -> &Option<String> {
+        &self.orig_response_body_content_type
+    }
+
     pub fn set_tracing(&mut self, enable: bool) {
         self.trace = enable;
     }
@@ -112,8 +130,10 @@ impl Debug {
         struct TraceAction<'a> {
             action: &'static str,
             name: &'a str,
+            #[serde(skip_serializing_if = "Option::is_none")]
             r#type: Option<&'a str>,
-            value: Option<&'a serde_json::Value>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            value: Option<&'a Value>,
         }
 
         let mut actions: Vec<TraceAction> = vec![];
@@ -141,6 +161,12 @@ impl Debug {
                         name: &set.node_name,
                         r#type: None,
                         value: None,
+                    },
+                    DataMode::Fail => TraceAction {
+                        action: "fail",
+                        name: &set.node_name,
+                        r#type: None,
+                        value: set.value.as_ref(),
                     },
                 },
             });

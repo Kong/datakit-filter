@@ -127,8 +127,11 @@ impl DataKitFilter {
     }
 
     fn debug_done_headers(&mut self) {
+        let ct = self.get_http_response_header("Content-Type");
         if let Some(ref mut debug) = self.debug {
             if debug.is_tracing() {
+                debug.save_response_body_content_type(ct);
+                self.set_http_response_header("Content-Type", Some("application/json"));
                 self.set_http_response_header("Content-Length", None);
                 self.set_http_response_header("Content-Encoding", None);
             }
@@ -262,8 +265,9 @@ impl HttpContext for DataKitFilter {
 
         if self.do_service_request_body {
             if let Some(payload) = self.data.first_input_for("service_request_body", None) {
-                let bytes = payload.to_bytes();
-                self.set_http_request_body(0, bytes.len(), &bytes);
+                if let Ok(bytes) = payload.to_bytes() {
+                    self.set_http_request_body(0, bytes.len(), &bytes);
+                }
             }
         }
 
@@ -287,12 +291,10 @@ impl HttpContext for DataKitFilter {
 
         if self.do_response_body {
             if let Some(payload) = self.data.first_input_for("response_body", None) {
-                if let Payload::Json(_) = payload {
-                    self.set_http_response_header("Content-Type", Some("application/json"));
-                }
                 let content_length = payload.len().map(|n| n.to_string());
                 self.set_http_response_header("Content-Length", content_length.as_deref());
                 self.set_http_response_header("Content-Encoding", None);
+                self.set_http_response_header("Content-Type", payload.content_type());
             }
         }
 
@@ -316,11 +318,14 @@ impl HttpContext for DataKitFilter {
 
         if self.do_response_body {
             if let Some(payload) = self.data.first_input_for("response_body", None) {
-                let bytes = payload.to_bytes();
-                self.set_http_response_body(0, bytes.len(), &bytes);
-            } else if self.debug.is_some() {
+                if let Ok(bytes) = payload.to_bytes() {
+                    self.set_http_response_body(0, bytes.len(), &bytes);
+                } else {
+                    self.set_http_response_body(0, 0, &[]);
+                }
+            } else if let Some(debug) = &self.debug {
                 if let Some(bytes) = self.get_http_response_body(0, body_size) {
-                    let content_type = self.get_http_response_header("Content-Type");
+                    let content_type = debug.response_body_content_type();
                     let payload = Payload::from_bytes(bytes, content_type.as_deref());
                     self.set_data("response_body", State::Done(payload));
                 }

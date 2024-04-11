@@ -62,7 +62,10 @@ impl Node for Call {
         headers_vec.push((":method", self.config.method.as_str()));
         headers_vec.push((":path", call_url.path()));
 
-        let body_slice = data::to_pwm_body(*body);
+        let body_slice = match data::to_pwm_body(*body) {
+            Ok(slice) => slice,
+            Err(e) => return Fail(Some(Payload::Error(e))),
+        };
 
         let trailers = vec![];
         let timeout = Duration::from_secs(self.config.timeout.into());
@@ -86,10 +89,7 @@ impl Node for Call {
                 self.token_id = Some(id);
                 Waiting(id)
             }
-            Err(status) => {
-                log::error!("call: error: {:?}", status);
-                Done(None)
-            }
+            Err(status) => Fail(Some(Payload::Error(format!("error: {:?}", status)))),
         }
     }
 
@@ -103,6 +103,9 @@ impl Node for Call {
         } else {
             None
         };
+
+        // TODO once we have multiple outputs,
+        // also return headers and produce a Fail() status on HTTP >= 400
 
         Done(r)
     }
