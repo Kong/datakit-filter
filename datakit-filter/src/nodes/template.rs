@@ -69,6 +69,9 @@ impl Node for Template<'_> {
                         }
                     };
                 }
+                Some(Payload::Error(error)) => {
+                    vs.push((input_name, serde_json::json!(error)));
+                }
                 None => {}
             }
         }
@@ -77,16 +80,19 @@ impl Node for Template<'_> {
             data.insert(input_name, v);
         }
 
-        State::Done(match self.handlebars.render("template", &data) {
+        match self.handlebars.render("template", &data) {
             Ok(output) => {
                 log::debug!("output: {}", output);
-                Payload::from_bytes(output.into(), Some(&self.config.content_type))
+                match Payload::from_bytes(output.into(), Some(&self.config.content_type)) {
+                    p @ Some(Payload::Error(_)) => State::Fail(p),
+                    p => State::Done(p),
+                }
             }
-            Err(err) => {
-                log::error!("template: error rendering template: {}", err);
-                None
-            }
-        })
+            Err(err) => State::Fail(Some(Payload::Error(format!(
+                "error rendering template: {}",
+                err
+            )))),
+        }
     }
 }
 

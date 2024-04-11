@@ -3,10 +3,11 @@ use std::collections::BTreeMap;
 
 use crate::dependency_graph::DependencyGraph;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum Payload {
     Raw(Vec<u8>),
     Json(serde_json::Value),
+    Error(String),
 }
 
 impl Payload {
@@ -22,12 +23,8 @@ impl Payload {
             Some(ct) => {
                 if ct == "application/json" {
                     match serde_json::from_slice(&bytes) {
-                        Ok::<serde_json::Value, _>(v) => Some(Payload::Json(v)),
-                        Err::<_, serde_json::Error>(e) => {
-                            log::error!("error decoding json: {}", e);
-
-                            None
-                        }
+                        Ok(v) => Some(Payload::Json(v)),
+                        Err(e) => Some(Payload::Error(e.to_string())),
                     }
                 } else {
                     Some(Payload::Raw(bytes))
@@ -37,32 +34,25 @@ impl Payload {
         }
     }
 
-    pub fn to_json(&self) -> Result<serde_json::Value, ()> {
+    pub fn to_json(&self) -> Result<serde_json::Value, String> {
         match &self {
             Payload::Json(value) => Ok(value.clone()),
-            Payload::Raw(vec) => {
-                if let Ok(s) = std::str::from_utf8(vec) {
-                    return serde_json::to_value(s).or(Err(()));
-                }
-
-                Err(())
-            }
+            Payload::Raw(vec) => match std::str::from_utf8(vec) {
+                Ok(s) => serde_json::to_value(s).map_err(|e| e.to_string()),
+                Err(e) => Err(e.to_string()),
+            },
+            Payload::Error(e) => Err(e.clone()),
         }
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
         match &self {
-            Payload::Json(value) => {
-                match serde_json::to_string(value) {
-                    Ok(s) => s.into_bytes(),
-                    Err::<_, serde_json::Error>(e) => {
-                        log::error!("error decoding json: {}", e);
-                        // FIXME should we return Result instead?
-                        vec![]
-                    }
-                }
-            }
-            Payload::Raw(s) => s.clone(), // it would be nice to be able to avoid this copy
+            Payload::Json(value) => match serde_json::to_string(value) {
+                Ok(s) => Ok(s.into_bytes()),
+                Err(e) => Err(e.to_string()),
+            },
+            Payload::Raw(s) => Ok(s.clone()), // it would be nice to be able to avoid this copy
+            Payload::Error(e) => Err(e.clone()),
         }
     }
 
@@ -70,6 +60,7 @@ impl Payload {
         match &self {
             Payload::Json(_) => None,
             Payload::Raw(s) => Some(s.len()),
+            Payload::Error(e) => Some(e.len()),
         }
     }
 
@@ -144,16 +135,22 @@ pub fn to_pwm_headers(payload: Option<&Payload>) -> Vec<(&str, &str)> {
 }
 
 /// To use this result in proxy-wasm calls as an Option<&[u8]>, use:
-/// data::to_pwm_body(p).as_deref()
-pub fn to_pwm_body(payload: Option<&Payload>) -> Option<Box<[u8]>> {
-    payload.map(|p| p.to_bytes()).map(Vec::into_boxed_slice)
+/// `data::to_pwm_body(p).as_deref()`.
+pub fn to_pwm_body(payload: Option<&Payload>) -> Result<Option<Box<[u8]>>, String> {
+    match payload {
+        Some(p) => match p.to_bytes() {
+            Ok(b) => Ok(Some(Vec::into_boxed_slice(b))),
+            Err(e) => Err(e),
+        },
+        None => Ok(None),
+    }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Debug)]
 pub enum State {
-    // Ready(),
     Waiting(u32),
     Done(Option<Payload>),
+    Fail(Option<Payload>),
 }
 
 #[derive(Default)]
@@ -190,7 +187,9 @@ impl Data {
                     }
                     None => return false,
                 },
-                // State::Ready() => {}
+                State::Fail(_) => {
+                    return false;
+                }
             }
         }
 

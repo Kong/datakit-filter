@@ -39,11 +39,12 @@ impl Node for Response {
             }
         }
 
-        ctx.send_http_response(
-            self.config.status,
-            headers_vec,
-            data::to_pwm_body(*body).as_deref(),
-        );
+        let body_slice = match data::to_pwm_body(*body) {
+            Ok(slice) => slice,
+            Err(e) => return Fail(Some(Payload::Error(e))),
+        };
+
+        ctx.send_http_response(self.config.status, headers_vec, body_slice.as_deref());
 
         Done(None)
     }
