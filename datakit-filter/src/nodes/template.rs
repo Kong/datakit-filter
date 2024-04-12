@@ -46,7 +46,7 @@ impl Template<'_> {
 }
 
 impl Node for Template<'_> {
-    fn run(&mut self, _ctx: &dyn HttpContext, inputs: &[Option<&Payload>]) -> State {
+    fn run(&self, _ctx: &dyn HttpContext, inputs: &[Option<&Payload>]) -> State {
         log::debug!("template: run - inputs: {:?}", inputs);
 
         let mut vs = Vec::new();
