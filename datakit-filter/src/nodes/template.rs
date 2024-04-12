@@ -107,8 +107,9 @@ impl NodeFactory for TemplateFactory {
     ) -> Result<Box<dyn NodeConfig>, String> {
         Ok(Box::new(TemplateConfig {
             inputs: inputs.to_vec(),
-            template: get_config_value(bt, "template", String::from("")),
-            content_type: get_config_value(bt, "content_type", String::from("application/json")),
+            template: get_config_value(bt, "template").unwrap_or_else(|| String::from("")),
+            content_type: get_config_value(bt, "content_type")
+                .unwrap_or_else(|| String::from("application/json")),
         }))
     }
 

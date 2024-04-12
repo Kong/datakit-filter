@@ -117,9 +117,9 @@ impl NodeFactory for CallFactory {
         bt: &BTreeMap<String, Value>,
     ) -> Result<Box<dyn NodeConfig>, String> {
         Ok(Box::new(CallConfig {
-            url: get_config_value(bt, "url", String::from("")),
-            method: get_config_value(bt, "method", String::from("GET")),
-            timeout: get_config_value(bt, "timeout", 60),
+            url: get_config_value(bt, "url").unwrap_or_else(|| String::from("")),
+            method: get_config_value(bt, "method").unwrap_or_else(|| String::from("GET")),
+            timeout: get_config_value(bt, "timeout").unwrap_or(60),
         }))
     }
 

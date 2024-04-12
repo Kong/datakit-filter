@@ -60,7 +60,7 @@ impl NodeFactory for ResponseFactory {
         bt: &BTreeMap<String, Value>,
     ) -> Result<Box<dyn NodeConfig>, String> {
         Ok(Box::new(ResponseConfig {
-            status: get_config_value(bt, "status", 200),
+            status: get_config_value(bt, "status").unwrap_or(200),
         }))
     }
 
