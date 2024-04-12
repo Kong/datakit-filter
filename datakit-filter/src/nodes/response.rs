@@ -27,7 +27,7 @@ pub struct Response {
 }
 
 impl Node for Response {
-    fn run(&mut self, ctx: &dyn HttpContext, inputs: &[Option<&Payload>]) -> State {
+    fn run(&self, ctx: &dyn HttpContext, inputs: &[Option<&Payload>]) -> State {
         let body = inputs.first().unwrap_or(&None);
         let headers = inputs.get(1).unwrap_or(&None);
 

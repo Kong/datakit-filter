@@ -3,6 +3,7 @@ use proxy_wasm::traits::*;
 use serde_json::Value;
 use std::any::Any;
 use std::collections::BTreeMap;
+use std::sync::RwLock;
 use std::time::Duration;
 use url::Url;
 
@@ -28,15 +29,28 @@ impl NodeConfig for CallConfig {
     }
 }
 
-#[derive(Clone)]
 pub struct Call {
     config: CallConfig,
 
-    token_id: Option<u32>,
+    token_id: RwLock<Option<u32>>,
+}
+
+impl Call {
+    fn set_token_id(&self, token_id: u32) {
+        let _ = self
+            .token_id
+            .write()
+            .expect("set_token_id(): lock poisoned")
+            .insert(token_id);
+    }
+
+    fn get_token_id(&self) -> Option<u32> {
+        *self.token_id.read().expect("get_token_id(): lock poisoned")
+    }
 }
 
 impl Node for Call {
-    fn run(&mut self, ctx: &dyn HttpContext, inputs: &[Option<&Payload>]) -> State {
+    fn run(&self, ctx: &dyn HttpContext, inputs: &[Option<&Payload>]) -> State {
         log::debug!("call: run");
 
         let body = inputs.first().unwrap_or(&None);
@@ -86,14 +100,14 @@ impl Node for Call {
         match result {
             Ok(id) => {
                 log::debug!("call: dispatch call id: {:?}", id);
-                self.token_id = Some(id);
+                self.set_token_id(id);
                 Waiting(id)
             }
             Err(status) => Fail(Some(Payload::Error(format!("error: {:?}", status)))),
         }
     }
 
-    fn resume(&mut self, ctx: &dyn HttpContext, _inputs: &[Option<&Payload>]) -> State {
+    fn resume(&self, ctx: &dyn HttpContext, _inputs: &[Option<&Payload>]) -> State {
         log::debug!("call: resume");
 
         let r = if let Some(body) = ctx.get_http_call_response_body(0, usize::MAX) {
@@ -111,7 +125,7 @@ impl Node for Call {
     }
 
     fn is_waiting_on(&self, token_id: u32) -> bool {
-        self.token_id == Some(token_id)
+        self.get_token_id().is_some_and(|t| t == token_id)
     }
 }
 
@@ -135,7 +149,7 @@ impl NodeFactory for CallFactory {
         match config.as_any().downcast_ref::<CallConfig>() {
             Some(cc) => Box::new(Call {
                 config: cc.clone(),
-                token_id: None,
+                token_id: RwLock::new(None),
             }),
             None => panic!("incompatible NodeConfig"),
         }

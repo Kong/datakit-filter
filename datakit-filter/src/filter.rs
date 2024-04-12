@@ -1,5 +1,5 @@
 use proxy_wasm::{traits::*, types::*};
-use std::mem;
+use std::rc::Rc;
 
 mod config;
 mod data;
@@ -18,7 +18,7 @@ use crate::nodes::{Node, NodeMap};
 // -----------------------------------------------------------------------------
 
 struct DataKitFilterRootContext {
-    config: Option<Config>,
+    config: Option<Rc<Config>>,
 }
 
 impl Context for DataKitFilterRootContext {}
@@ -28,7 +28,7 @@ impl RootContext for DataKitFilterRootContext {
         match self.get_plugin_configuration() {
             Some(config_bytes) => match Config::new(config_bytes) {
                 Ok(config) => {
-                    self.config = Some(config);
+                    self.config = Some(Rc::new(config));
                     true
                 }
                 Err(err) => {
@@ -65,14 +65,14 @@ impl RootContext for DataKitFilterRootContext {
             };
 
             Some(Box::new(DataKitFilter {
-                nodes: Some(nodes),
+                config: config.clone(),
 
+                nodes,
                 debug,
 
                 // FIXME: is it possible to do lifetime annotations
                 // to avoid cloning every time?
                 data: Data::new(graph.clone()),
-                node_names: config.get_node_names().clone(),
 
                 do_request_headers: graph.has_dependents("request_headers"),
                 do_request_body: graph.has_dependents("request_body"),
@@ -94,8 +94,8 @@ impl RootContext for DataKitFilterRootContext {
 // -----------------------------------------------------------------------------
 
 pub struct DataKitFilter {
-    node_names: Vec<String>,
-    nodes: Option<NodeMap>,
+    config: Rc<Config>,
+    nodes: NodeMap,
     data: Data,
     debug: Option<Debug>,
     do_request_headers: bool,
@@ -163,34 +163,32 @@ impl DataKitFilter {
     fn run_nodes(&mut self) -> Action {
         let mut ret = Action::Continue;
 
-        if let Some(mut nodes) = mem::take(&mut self.nodes) {
-            loop {
-                let mut any_ran = false;
-                for name in &self.node_names {
-                    let node: &mut Box<dyn Node> = nodes
-                        .get_mut(name)
-                        .expect("self.nodes doesn't match self.node_names");
-                    if let Some(inputs) = self.data.get_inputs_for(name, None) {
-                        any_ran = true;
+        loop {
+            let mut any_ran = false;
+            for name in self.config.get_node_names() {
+                let node: &dyn Node = self
+                    .nodes
+                    .get(name)
+                    .expect("self.nodes doesn't match self.node_names")
+                    .as_ref();
+                if let Some(inputs) = self.data.get_inputs_for(name, None) {
+                    any_ran = true;
 
-                        let state = node.run(self, &inputs);
+                    let state = node.run(self as &dyn HttpContext, &inputs);
 
-                        if let Some(ref mut debug) = self.debug {
-                            debug.run(name, &inputs, &state, RunMode::Run);
-                        }
-
-                        if let State::Waiting(_) = state {
-                            ret = Action::Pause;
-                        }
-                        self.data.set(name, state);
+                    if let Some(ref mut debug) = self.debug {
+                        debug.run(name, &inputs, &state, RunMode::Run);
                     }
-                }
-                if !any_ran {
-                    break;
+
+                    if let State::Waiting(_) = state {
+                        ret = Action::Pause;
+                    }
+                    self.data.set(name, state);
                 }
             }
-
-            let _ = mem::replace(&mut self.nodes, Some(nodes));
+            if !any_ran {
+                break;
+            }
         }
 
         ret
@@ -207,24 +205,24 @@ impl Context for DataKitFilter {
     ) {
         log::debug!("DataKitFilter: on http call response, id = {:?}", token_id);
 
-        if let Some(mut nodes) = mem::take(&mut self.nodes) {
-            for name in &self.node_names {
-                let node: &mut Box<dyn Node> = nodes
-                    .get_mut(name)
-                    .expect("self.nodes doesn't match self.node_names");
-                if let Some(inputs) = self.data.get_inputs_for(name, Some(token_id)) {
-                    let state = node.resume(self, &inputs);
+        for name in self.config.get_node_names() {
+            let node: &dyn Node = self
+                .nodes
+                .get(name)
+                .expect("self.nodes doesn't match self.node_names")
+                .as_ref();
+            if let Some(inputs) = self.data.get_inputs_for(name, Some(token_id)) {
+                let state = node.resume(self, &inputs);
 
-                    if let Some(ref mut debug) = self.debug {
-                        debug.run(name, &inputs, &state, RunMode::Resume);
-                    }
-
-                    self.data.set(name, state);
-                    break;
+                if let Some(ref mut debug) = self.debug {
+                    debug.run(name, &inputs, &state, RunMode::Resume);
                 }
+
+                self.data.set(name, state);
+                break;
             }
-            let _ = mem::replace(&mut self.nodes, Some(nodes));
         }
+
         self.run_nodes();
 
         self.resume_http_request();
