@@ -5,7 +5,6 @@ use proxy_wasm::traits::*;
 use serde_json::Value as JsonValue;
 use std::any::Any;
 use std::collections::BTreeMap;
-use std::str::from_utf8;
 
 use crate::config::get_config_value;
 use crate::data::{Payload, State};
@@ -135,18 +134,13 @@ impl Jq {
             .zip(inputs.iter())
             .map(|(name, input)| -> Val {
                 match input {
-                    Some(Payload::Json(value)) => value.clone().into(),
-                    Some(Payload::Raw(bytes)) => match from_utf8(bytes) {
-                        Ok(s) => Val::str(s.to_string()),
+                    Some(input) => match input.to_json() {
+                        Ok(value) => value.into(),
                         Err(e) => {
-                            errs.push(format!("jq: input for {name} is not valid UTF-8: {e}"));
+                            errs.push(format!("jq: input error at {name}: {e}"));
                             Val::Null
                         }
                     },
-                    Some(Payload::Error(e)) => {
-                        log::warn!("input error from previous node: {e}");
-                        Val::Null
-                    }
                     None => Val::Null,
                 }
             });
