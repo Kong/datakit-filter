@@ -53,39 +53,39 @@ impl RootContext for DataKitFilterRootContext {
             context_id
         );
 
-        if let Some(config) = &self.config {
-            let nodes = config.build_nodes();
+        let config = self.config.clone()?;
 
-            let graph = config.get_graph();
+        let nodes = config.build_nodes();
+        let graph = config.get_graph();
+        let debug = config.debug().then(|| Debug::new(&config));
 
-            let debug = if config.debug() {
-                Some(Debug::new(config))
-            } else {
-                None
-            };
+        // FIXME: is it possible to do lifetime annotations
+        // to avoid cloning every time?
+        let data = Data::new(graph.clone());
 
-            Some(Box::new(DataKitFilter {
-                config: config.clone(),
+        let do_request_headers = graph.has_dependents("request_headers");
+        let do_request_body = graph.has_dependents("request_body");
+        let do_service_request_headers = graph.has_providers("service_request_headers");
+        let do_service_request_body = graph.has_providers("service_request_body");
+        let do_service_response_headers = graph.has_dependents("service_response_headers");
+        let do_service_response_body = graph.has_dependents("service_response_body");
+        let do_response_headers = graph.has_providers("response_headers");
+        let do_response_body = graph.has_providers("response_body");
 
-                nodes,
-                debug,
-
-                // FIXME: is it possible to do lifetime annotations
-                // to avoid cloning every time?
-                data: Data::new(graph.clone()),
-
-                do_request_headers: graph.has_dependents("request_headers"),
-                do_request_body: graph.has_dependents("request_body"),
-                do_service_request_headers: graph.has_providers("service_request_headers"),
-                do_service_request_body: graph.has_providers("service_request_body"),
-                do_service_response_headers: graph.has_dependents("service_response_headers"),
-                do_service_response_body: graph.has_dependents("service_response_body"),
-                do_response_headers: graph.has_providers("response_headers"),
-                do_response_body: graph.has_providers("response_body"),
-            }))
-        } else {
-            None
-        }
+        Some(Box::new(DataKitFilter {
+            config,
+            nodes,
+            debug,
+            data,
+            do_request_headers,
+            do_request_body,
+            do_service_request_headers,
+            do_service_request_body,
+            do_service_response_headers,
+            do_service_response_body,
+            do_response_headers,
+            do_response_body,
+        }))
     }
 }
 
