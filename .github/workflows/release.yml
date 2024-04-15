@@ -27,18 +27,14 @@ jobs:
       run: cargo build --release
 
     - run: |
-        if ! test -f target/wasm32-wasi/release/datakit_filter.wasm; then
+        if ! test -f target/wasm32-wasi/release/datakit.wasm; then
           echo "missing output binary"
           exit 1
         fi
 
         mv -v \
-          ./target/wasm32-wasi/release/datakit_filter.wasm \
+          ./target/wasm32-wasi/release/datakit.wasm \
           ./datakit.wasm
-
-        mv -v \
-          ./datakit-filter/datakit_filter.meta.json \
-          ./datakit.meta.json
 
         readonly BODY=./body.md
         touch "$BODY"
