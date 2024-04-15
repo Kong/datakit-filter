@@ -12,7 +12,7 @@ services:
     strip_path: false
     filter_chains:
     - filters:
-      - name: datakit_filter
+      - name: datakit
         config:
           nodes:
           - type: call

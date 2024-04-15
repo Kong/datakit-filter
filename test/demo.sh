@@ -35,7 +35,7 @@ message "Building the filter using cargo..."
 mkdir -p wasm
 
 cp -a ../target/wasm32-wasi/release/*.wasm wasm/
-cp ../*/*.meta.json wasm/
+cp ../*.meta.json wasm/
 
 script_dir=$(dirname $(realpath $0))
 

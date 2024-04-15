@@ -89,7 +89,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "datakit-filter"
+name = "datakit"
 version = "0.1.0"
 dependencies = [
  "handlebars",
