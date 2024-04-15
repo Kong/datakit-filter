@@ -32,7 +32,7 @@ impl RootContext for DataKitFilterRootContext {
                     true
                 }
                 Err(err) => {
-                    log::warn!("on_configure: {}", err);
+                    log::warn!("on_configure: {err}");
                     false
                 }
             },
@@ -48,10 +48,7 @@ impl RootContext for DataKitFilterRootContext {
     }
 
     fn create_http_context(&self, context_id: u32) -> Option<Box<dyn HttpContext>> {
-        log::debug!(
-            "DataKitFilterRootContext: create http context id: {}",
-            context_id
-        );
+        log::debug!("DataKitFilterRootContext: create http context id: {context_id}");
 
         let config = self.config.clone()?;
 

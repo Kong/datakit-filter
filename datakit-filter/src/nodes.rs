@@ -62,7 +62,7 @@ pub fn new_config(
     if let Some(nf) = node_types().lock().unwrap().get(node_type) {
         nf.new_config(name, inputs, bt)
     } else {
-        Err(format!("no such node type: {}", node_type))
+        Err(format!("no such node type: {node_type}"))
     }
 }
 
@@ -70,6 +70,6 @@ pub fn new_node(node_type: &str, config: &dyn NodeConfig) -> Result<Box<dyn Node
     if let Some(nf) = node_types().lock().unwrap().get(node_type) {
         Ok(nf.new_node(config))
     } else {
-        Err(format!("no such node type: {}", node_type))
+        Err(format!("no such node type: {node_type}"))
     }
 }

@@ -152,7 +152,7 @@ impl Config {
                     let name: &str = &unc.name;
 
                     if RESERVED_NODE_NAMES.contains(name) {
-                        return Err(format!("cannot use reserved node name '{}'", name));
+                        return Err(format!("cannot use reserved node name '{name}'"));
                     }
 
                     node_names.push(name.to_string());
@@ -186,9 +186,8 @@ impl Config {
                 })
             }
             Err(err) => Err(format!(
-                "failed parsing configuration: {}: {}",
-                String::from_utf8(config_bytes).unwrap(),
-                err
+                "failed parsing configuration: {}: {err}",
+                String::from_utf8(config_bytes).unwrap()
             )),
         }
     }
@@ -222,7 +221,7 @@ impl Config {
                     nodes.insert(name.to_string(), node);
                 }
                 Err(err) => {
-                    log::error!("{}", err);
+                    log::error!("{err}");
                 }
             }
         }

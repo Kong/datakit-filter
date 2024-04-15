@@ -34,7 +34,7 @@ impl Template<'_> {
         match hb.register_template_string("template", &config.template) {
             Ok(()) => {}
             Err(err) => {
-                log::error!("template: error registering template: {}", err);
+                log::error!("template: error registering template: {err}");
             }
         }
 
@@ -65,7 +65,7 @@ impl Node for Template<'_> {
                             vs.push((input_name, v));
                         }
                         Err(err) => {
-                            log::error!("template: input string is not valid UTF-8: {}", err);
+                            log::error!("template: input string is not valid UTF-8: {err}");
                         }
                     };
                 }
@@ -82,15 +82,14 @@ impl Node for Template<'_> {
 
         match self.handlebars.render("template", &data) {
             Ok(output) => {
-                log::debug!("output: {}", output);
+                log::debug!("output: {output}");
                 match Payload::from_bytes(output.into(), Some(&self.config.content_type)) {
                     p @ Some(Payload::Error(_)) => State::Fail(p),
                     p => State::Done(p),
                 }
             }
             Err(err) => State::Fail(Some(Payload::Error(format!(
-                "error rendering template: {}",
-                err
+                "error rendering template: {err}"
             )))),
         }
     }

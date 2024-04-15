@@ -42,7 +42,7 @@ impl Node for Call {
         let call_url = match Url::parse(self.config.url.as_str()) {
             Ok(u) => u,
             Err(err) => {
-                log::error!("call: failed parsing URL from 'url' field: {}", err);
+                log::error!("call: failed parsing URL from 'url' field: {err}");
                 return Done(None);
             }
         };
@@ -68,7 +68,7 @@ impl Node for Call {
         let timeout = Duration::from_secs(self.config.timeout.into());
 
         let host_port = match call_url.port() {
-            Some(port) => format!("{}:{}", host, port),
+            Some(port) => format!("{host}:{port}"),
             None => host.to_owned(),
         };
 
