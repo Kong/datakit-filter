@@ -209,7 +209,7 @@ impl NodeFactory for JqFactory {
         bt: &BTreeMap<String, JsonValue>,
     ) -> Result<Box<dyn NodeConfig>, String> {
         Ok(Box::new(JqConfig {
-            jq: get_config_value(bt, "jq").ok_or_else(|| ".".to_string())?,
+            jq: get_config_value(bt, "jq").unwrap_or(".".to_string()),
             inputs: inputs.to_vec(),
         }))
     }
