@@ -31,10 +31,14 @@ jobs:
           echo "missing output binary"
           exit 1
         fi
+
         mv -v \
           ./target/wasm32-wasi/release/datakit_filter.wasm \
+          ./datakit.wasm
+
+        mv -v \
           ./datakit-filter/datakit_filter.meta.json \
-          ./
+          ./datakit.meta.json
 
         readonly BODY=./body.md
         touch "$BODY"
@@ -43,14 +47,14 @@ jobs:
         printf '```\n'            >> "$BODY"
 
         sha256sum \
-          datakit_filter.wasm \
-          datakit_filter.meta.json \
+          datakit.wasm \
+          datakit.meta.json \
         >> "$BODY"
 
         printf '```\n'            >> "$BODY"
 
     - uses: ncipollo/release-action@v1
       with:
-        artifacts: datakit_filter.wasm,datakit_filter.meta.json
+        artifacts: datakit.wasm,datakit.meta.json
         makeLatest: 'true'
         bodyFile: body.md
