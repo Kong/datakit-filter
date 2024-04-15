@@ -3,7 +3,6 @@ use proxy_wasm::traits::*;
 use serde_json::Value;
 use std::any::Any;
 use std::collections::BTreeMap;
-use std::sync::RwLock;
 use std::time::Duration;
 use url::Url;
 
@@ -31,22 +30,6 @@ impl NodeConfig for CallConfig {
 
 pub struct Call {
     config: CallConfig,
-
-    token_id: RwLock<Option<u32>>,
-}
-
-impl Call {
-    fn set_token_id(&self, token_id: u32) {
-        let _ = self
-            .token_id
-            .write()
-            .expect("set_token_id(): lock poisoned")
-            .insert(token_id);
-    }
-
-    fn get_token_id(&self) -> Option<u32> {
-        *self.token_id.read().expect("get_token_id(): lock poisoned")
-    }
 }
 
 impl Node for Call {
@@ -100,7 +83,6 @@ impl Node for Call {
         match result {
             Ok(id) => {
                 log::debug!("call: dispatch call id: {:?}", id);
-                self.set_token_id(id);
                 Waiting(id)
             }
             Err(status) => Fail(Some(Payload::Error(format!("error: {:?}", status)))),
@@ -123,10 +105,6 @@ impl Node for Call {
 
         Done(r)
     }
-
-    fn is_waiting_on(&self, token_id: u32) -> bool {
-        self.get_token_id().is_some_and(|t| t == token_id)
-    }
 }
 
 pub struct CallFactory {}
@@ -147,10 +125,7 @@ impl NodeFactory for CallFactory {
 
     fn new_node(&self, config: &dyn NodeConfig) -> Box<dyn Node> {
         match config.as_any().downcast_ref::<CallConfig>() {
-            Some(cc) => Box::new(Call {
-                config: cc.clone(),
-                token_id: RwLock::new(None),
-            }),
+            Some(cc) => Box::new(Call { config: cc.clone() }),
             None => panic!("incompatible NodeConfig"),
         }
     }
