@@ -12,7 +12,7 @@ use crate::nodes::{Node, NodeConfig, NodeFactory};
 
 #[derive(Clone, Debug)]
 pub struct JqConfig {
-    filter: String,
+    jq: String,
     inputs: Vec<String>,
 }
 
@@ -32,7 +32,7 @@ impl TryFrom<&JqConfig> for Jq {
     type Error = String;
 
     fn try_from(config: &JqConfig) -> Result<Self, Self::Error> {
-        Jq::new(&config.filter, config.inputs.clone())
+        Jq::new(&config.jq, config.inputs.clone())
     }
 }
 
@@ -78,7 +78,7 @@ impl From<Errors> for State {
 }
 
 impl Jq {
-    fn new(filter: &str, inputs: Vec<String>) -> Result<Self, String> {
+    fn new(jq: &str, inputs: Vec<String>) -> Result<Self, String> {
         let mut defs = ParseCtx::new(inputs.clone());
 
         defs.insert_natives(jaq_core::core());
@@ -86,12 +86,12 @@ impl Jq {
 
         if !defs.errs.is_empty() {
             for (err, _) in defs.errs {
-                log::error!("filter input error: {err}");
+                log::error!("jq: input error: {err}");
             }
             return Err("failed parsing filter inputs".to_string());
         }
 
-        let (parsed, errs) = jaq_parse::parse(filter, jaq_parse::main());
+        let (parsed, errs) = jaq_parse::parse(jq, jaq_parse::main());
         if !errs.is_empty() {
             for err in errs {
                 log::error!("filter parse error: {err}");
@@ -209,8 +209,7 @@ impl NodeFactory for JqFactory {
         bt: &BTreeMap<String, JsonValue>,
     ) -> Result<Box<dyn NodeConfig>, String> {
         Ok(Box::new(JqConfig {
-            filter: get_config_value(bt, "filter")
-                .ok_or_else(|| "no filter specified".to_string())?,
+            jq: get_config_value(bt, "jq").ok_or_else(|| ".".to_string())?,
             inputs: inputs.to_vec(),
         }))
     }
