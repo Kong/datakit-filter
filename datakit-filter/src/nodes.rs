@@ -20,10 +20,6 @@ pub trait Node {
     fn resume(&self, _ctx: &dyn HttpContext, _inputs: &[Option<&Payload>]) -> State {
         Done(None)
     }
-
-    fn is_waiting_on(&self, _token_id: u32) -> bool {
-        false
-    }
 }
 
 pub trait NodeConfig {
