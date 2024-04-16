@@ -9,7 +9,7 @@ use url::Url;
 use crate::config::get_config_value;
 use crate::data;
 use crate::data::{Payload, State, State::*};
-use crate::nodes::{Node, NodeConfig, NodeFactory};
+use crate::nodes::{FilterPhase, Node, NodeConfig, NodeFactory};
 
 #[derive(Clone, Debug)]
 pub struct CallConfig {
@@ -33,7 +33,7 @@ pub struct Call {
 }
 
 impl Node for Call {
-    fn run(&self, ctx: &dyn HttpContext, inputs: &[Option<&Payload>]) -> State {
+    fn run(&self, ctx: &dyn HttpContext, inputs: &[Option<&Payload>], _: FilterPhase) -> State {
         log::debug!("call: run");
 
         let body = inputs.first().unwrap_or(&None);

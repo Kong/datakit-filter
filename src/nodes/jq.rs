@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 
 use crate::config::get_config_value;
 use crate::data::{Payload, State};
-use crate::nodes::{Node, NodeConfig, NodeFactory};
+use crate::nodes::{FilterPhase, Node, NodeConfig, NodeFactory};
 
 #[derive(Clone, Debug)]
 pub struct JqConfig {
@@ -175,7 +175,7 @@ impl Jq {
 }
 
 impl Node for Jq {
-    fn run(&self, _ctx: &dyn HttpContext, inputs: &[Option<&Payload>]) -> State {
+    fn run(&self, _ctx: &dyn HttpContext, inputs: &[Option<&Payload>], _: FilterPhase) -> State {
         match self.exec(inputs) {
             Ok(mut results) => {
                 State::Done(match results.len() {

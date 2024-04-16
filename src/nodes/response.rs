@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use crate::config::get_config_value;
 use crate::data;
 use crate::data::{Payload, State, State::*};
-use crate::nodes::{Node, NodeConfig, NodeFactory};
+use crate::nodes::{FilterPhase, Node, NodeConfig, NodeFactory};
 
 #[derive(Clone, Debug)]
 pub struct ResponseConfig {
@@ -31,7 +31,7 @@ pub struct Response {
 }
 
 impl Node for Response {
-    fn run(&self, ctx: &dyn HttpContext, inputs: &[Option<&Payload>]) -> State {
+    fn run(&self, ctx: &dyn HttpContext, inputs: &[Option<&Payload>], phase: FilterPhase) -> State {
         let body = inputs.first().unwrap_or(&None);
         let headers = inputs.get(1).unwrap_or(&None);
 

@@ -13,8 +13,23 @@ pub mod template;
 
 pub type NodeMap = BTreeMap<String, Box<dyn Node>>;
 
+#[allow(clippy::enum_variant_names)]
+#[derive(PartialEq, Clone, Copy)]
+pub enum FilterPhase {
+    HttpRequestHeaders,
+    HttpRequestBody,
+    HttpResponseHeaders,
+    HttpResponseBody,
+    HttpCallResponse,
+}
+
 pub trait Node {
-    fn run(&self, _ctx: &dyn HttpContext, _inputs: &[Option<&Payload>]) -> State {
+    fn run(
+        &self,
+        _ctx: &dyn HttpContext,
+        _inputs: &[Option<&Payload>],
+        _phase: FilterPhase,
+    ) -> State {
         Done(None)
     }
 
