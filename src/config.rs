@@ -140,6 +140,24 @@ pub struct Config {
     debug: bool,
 }
 
+fn add_default_connections(unc: &UserNodeConfig, nc: &dyn NodeConfig, graph: &mut DependencyGraph) {
+    let name: &str = &unc.name;
+    if unc.inputs.is_empty() {
+        if let Some(default_inputs) = nc.default_inputs() {
+            for input in &default_inputs {
+                graph.add(input, name)
+            }
+        }
+    }
+    if unc.outputs.is_empty() {
+        if let Some(default_outputs) = nc.default_outputs() {
+            for output in &default_outputs {
+                graph.add(name, output)
+            }
+        }
+    }
+}
+
 impl Config {
     pub fn new(config_bytes: Vec<u8>) -> Result<Config, String> {
         match de::from_slice::<UserConfig>(&config_bytes) {
@@ -167,11 +185,15 @@ impl Config {
                 for unc in &user_config.nodes {
                     let inputs = graph.get_input_names(&unc.name);
                     match nodes::new_config(&unc.node_type, &unc.name, inputs, &unc.bt) {
-                        Ok(nc) => node_list.push(NodeInfo {
-                            name: unc.name.to_string(),
-                            node_type: unc.node_type.to_string(),
-                            node_config: nc,
-                        }),
+                        Ok(nc) => {
+                            add_default_connections(unc, &*nc, &mut graph);
+
+                            node_list.push(NodeInfo {
+                                name: unc.name.to_string(),
+                                node_type: unc.node_type.to_string(),
+                                node_config: nc,
+                            });
+                        }
                         Err(err) => {
                             return Err(err);
                         }
