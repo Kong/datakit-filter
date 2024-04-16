@@ -4,7 +4,7 @@ use std::any::Any;
 use std::collections::BTreeMap;
 use std::sync::{Mutex, OnceLock};
 
-use crate::data::{Payload, State, State::*};
+use crate::data::{Input, State, State::*};
 
 pub mod call;
 pub mod jq;
@@ -14,11 +14,11 @@ pub mod template;
 pub type NodeMap = BTreeMap<String, Box<dyn Node>>;
 
 pub trait Node {
-    fn run(&self, _ctx: &dyn HttpContext, _inputs: &[Option<&Payload>]) -> State {
+    fn run(&self, _ctx: &dyn HttpContext, _input: &Input) -> State {
         Done(None)
     }
 
-    fn resume(&self, _ctx: &dyn HttpContext, _inputs: &[Option<&Payload>]) -> State {
+    fn resume(&self, _ctx: &dyn HttpContext, _input: &Input) -> State {
         Done(None)
     }
 }

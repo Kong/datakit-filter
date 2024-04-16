@@ -3,6 +3,21 @@ use std::collections::BTreeMap;
 
 use crate::dependency_graph::DependencyGraph;
 
+#[allow(clippy::enum_variant_names)]
+#[derive(PartialEq, Clone, Copy)]
+pub enum Phase {
+    HttpRequestHeaders,
+    HttpRequestBody,
+    HttpResponseHeaders,
+    HttpResponseBody,
+    HttpCallResponse,
+}
+
+pub struct Input<'a> {
+    pub data: &'a [Option<&'a Payload>],
+    pub phase: Phase,
+}
+
 #[derive(Debug)]
 pub enum Payload {
     Raw(Vec<u8>),

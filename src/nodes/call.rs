@@ -8,7 +8,7 @@ use url::Url;
 
 use crate::config::get_config_value;
 use crate::data;
-use crate::data::{Payload, State, State::*};
+use crate::data::{Input, Payload, State, State::*};
 use crate::nodes::{Node, NodeConfig, NodeFactory};
 
 #[derive(Clone, Debug)]
@@ -33,11 +33,11 @@ pub struct Call {
 }
 
 impl Node for Call {
-    fn run(&self, ctx: &dyn HttpContext, inputs: &[Option<&Payload>]) -> State {
+    fn run(&self, ctx: &dyn HttpContext, input: &Input) -> State {
         log::debug!("call: run");
 
-        let body = inputs.first().unwrap_or(&None);
-        let headers = inputs.get(1).unwrap_or(&None);
+        let body = input.data.first().unwrap_or(&None);
+        let headers = input.data.get(1).unwrap_or(&None);
 
         let call_url = match Url::parse(self.config.url.as_str()) {
             Ok(u) => u,
@@ -89,7 +89,7 @@ impl Node for Call {
         }
     }
 
-    fn resume(&self, ctx: &dyn HttpContext, _inputs: &[Option<&Payload>]) -> State {
+    fn resume(&self, ctx: &dyn HttpContext, _inputs: &Input) -> State {
         log::debug!("call: resume");
 
         let r = if let Some(body) = ctx.get_http_call_response_body(0, usize::MAX) {

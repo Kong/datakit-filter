@@ -5,7 +5,7 @@ use std::any::Any;
 use std::collections::BTreeMap;
 
 use crate::config::get_config_value;
-use crate::data::{Payload, State};
+use crate::data::{Input, Payload, State};
 use crate::nodes::{Node, NodeConfig, NodeFactory};
 
 #[derive(Clone, Debug)]
@@ -46,13 +46,11 @@ impl Template<'_> {
 }
 
 impl Node for Template<'_> {
-    fn run(&self, _ctx: &dyn HttpContext, inputs: &[Option<&Payload>]) -> State {
-        log::debug!("template: run - inputs: {:?}", inputs);
-
+    fn run(&self, _ctx: &dyn HttpContext, input: &Input) -> State {
         let mut vs = Vec::new();
         let mut data = BTreeMap::new();
 
-        for (input_name, input) in self.config.inputs.iter().zip(inputs.iter()) {
+        for (input_name, input) in self.config.inputs.iter().zip(input.data.iter()) {
             match input {
                 Some(Payload::Json(value)) => {
                     data.insert(input_name, value);
