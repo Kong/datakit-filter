@@ -25,6 +25,14 @@ pub trait Node {
 
 pub trait NodeConfig {
     fn as_any(&self) -> &dyn Any;
+
+    fn default_inputs(&self) -> Option<Vec<String>> {
+        None
+    }
+
+    fn default_outputs(&self) -> Option<Vec<String>> {
+        None
+    }
 }
 
 pub trait NodeFactory: Send {

@@ -19,6 +19,10 @@ impl NodeConfig for ResponseConfig {
     fn as_any(&self) -> &dyn Any {
         self
     }
+
+    fn default_outputs(&self) -> Option<Vec<String>> {
+        Some(vec!["response_body".to_string()])
+    }
 }
 
 #[derive(Clone)]
