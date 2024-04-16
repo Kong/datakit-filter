@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use crate::config::get_config_value;
 use crate::data;
-use crate::data::{Input, Payload, State, State::*};
+use crate::data::{Input, Payload, Phase, State, State::*};
 use crate::nodes::{Node, NodeConfig, NodeFactory};
 
 #[derive(Clone, Debug)]
@@ -48,7 +48,13 @@ impl Node for Response {
             Err(e) => return Fail(Some(Payload::Error(e))),
         };
 
-        ctx.send_http_response(self.config.status, headers_vec, body_slice.as_deref());
+        if input.phase == Phase::HttpResponseBody {
+            if let Some(b) = body_slice {
+                ctx.set_http_response_body(0, b.len(), &b);
+            }
+        } else {
+            ctx.send_http_response(self.config.status, headers_vec, body_slice.as_deref());
+        }
 
         Done(None)
     }
