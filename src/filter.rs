@@ -301,6 +301,10 @@ impl HttpContext for DataKitFilter {
     }
 
     fn on_http_response_body(&mut self, body_size: usize, eof: bool) -> Action {
+        if !eof {
+            return Action::Pause;
+        }
+
         if eof && self.do_service_response_body {
             if let Some(bytes) = self.get_http_response_body(0, body_size) {
                 let content_type = self.get_http_response_header("Content-Type");
