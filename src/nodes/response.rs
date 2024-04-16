@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use crate::config::get_config_value;
 use crate::data;
-use crate::data::{Payload, State, State::*};
+use crate::data::{Input, Payload, State, State::*};
 use crate::nodes::{Node, NodeConfig, NodeFactory};
 
 #[derive(Clone, Debug)]
@@ -31,9 +31,9 @@ pub struct Response {
 }
 
 impl Node for Response {
-    fn run(&self, ctx: &dyn HttpContext, inputs: &[Option<&Payload>]) -> State {
-        let body = inputs.first().unwrap_or(&None);
-        let headers = inputs.get(1).unwrap_or(&None);
+    fn run(&self, ctx: &dyn HttpContext, input: &Input) -> State {
+        let body = input.data.first().unwrap_or(&None);
+        let headers = input.data.get(1).unwrap_or(&None);
 
         let mut headers_vec = data::to_pwm_headers(*headers);
 

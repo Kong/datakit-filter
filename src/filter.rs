@@ -8,7 +8,7 @@ mod dependency_graph;
 mod nodes;
 
 use crate::config::Config;
-use crate::data::{Data, Payload, State};
+use crate::data::{Data, Input, Payload, Phase, Phase::*, State};
 use crate::debug::{Debug, RunMode};
 use crate::dependency_graph::DependencyGraph;
 use crate::nodes::{Node, NodeMap};
@@ -171,7 +171,7 @@ impl DataKitFilter {
         self.set_data(name, State::Done(Some(payload)));
     }
 
-    fn run_nodes(&mut self) -> Action {
+    fn run_nodes(&mut self, phase: Phase) -> Action {
         let mut ret = Action::Continue;
 
         let mut debug_is_tracing = false;
@@ -190,7 +190,11 @@ impl DataKitFilter {
                 if let Some(inputs) = self.data.get_inputs_for(name, None) {
                     any_ran = true;
 
-                    let state = node.run(self as &dyn HttpContext, &inputs);
+                    let input = Input {
+                        data: &inputs,
+                        phase,
+                    };
+                    let state = node.run(self as &dyn HttpContext, &input);
 
                     if let Some(ref mut debug) = self.debug {
                         debug.run(name, &inputs, &state, RunMode::Run);
@@ -238,7 +242,11 @@ impl Context for DataKitFilter {
                 .expect("self.nodes doesn't match self.node_names")
                 .as_ref();
             if let Some(inputs) = self.data.get_inputs_for(name, Some(token_id)) {
-                let state = node.resume(self, &inputs);
+                let input = Input {
+                    data: &inputs,
+                    phase: HttpCallResponse,
+                };
+                let state = node.resume(self, &input);
 
                 if let Some(ref mut debug) = self.debug {
                     debug.run(name, &inputs, &state, RunMode::Resume);
@@ -249,7 +257,7 @@ impl Context for DataKitFilter {
             }
         }
 
-        self.run_nodes();
+        self.run_nodes(HttpCallResponse);
 
         self.resume_http_request();
     }
@@ -266,7 +274,7 @@ impl HttpContext for DataKitFilter {
             self.set_headers_data(vec, "request_headers");
         }
 
-        self.run_nodes()
+        self.run_nodes(HttpRequestHeaders)
     }
 
     fn on_http_request_body(&mut self, body_size: usize, eof: bool) -> Action {
@@ -278,7 +286,7 @@ impl HttpContext for DataKitFilter {
             }
         }
 
-        let action = self.run_nodes();
+        let action = self.run_nodes(HttpRequestBody);
 
         if self.do_service_request_headers {
             if let Some(payload) = self.data.first_input_for("service_request_headers", None) {
@@ -304,7 +312,7 @@ impl HttpContext for DataKitFilter {
             self.set_headers_data(vec, "service_response_headers");
         }
 
-        let action = self.run_nodes();
+        let action = self.run_nodes(HttpResponseHeaders);
 
         if self.do_response_headers {
             if let Some(payload) = self.data.first_input_for("response_headers", None) {
@@ -342,7 +350,7 @@ impl HttpContext for DataKitFilter {
             }
         }
 
-        let action = self.run_nodes();
+        let action = self.run_nodes(HttpResponseBody);
 
         if self.do_response_body {
             if let Some(payload) = self.data.first_input_for("response_body", None) {
