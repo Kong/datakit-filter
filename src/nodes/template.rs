@@ -1,4 +1,4 @@
-use handlebars::Handlebars;
+use handlebars::{handlebars_helper, Handlebars};
 use proxy_wasm::traits::*;
 use serde_json::Value;
 use std::any::Any;
@@ -27,9 +27,24 @@ pub struct Template<'a> {
     handlebars: Handlebars<'a>,
 }
 
+handlebars_helper!(toJSON: |value: object|
+if value.is_empty() {
+    "{}".into()
+} else {
+    serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_string())
+});
+
 impl Template<'_> {
     fn new(config: TemplateConfig) -> Self {
         let mut hb = Handlebars::new();
+
+        hb.register_helper("toJSON", Box::new(toJSON));
+
+        hb.register_escape_fn(if config.content_type.contains("html") {
+            handlebars::html_escape
+        } else {
+            handlebars::no_escape
+        });
 
         match hb.register_template_string("template", &config.template) {
             Ok(()) => {}
