@@ -32,10 +32,11 @@ pub struct Response {
 
 impl Node for Response {
     fn run(&self, ctx: &dyn HttpContext, input: &Input) -> State {
-        let body = input.data.first().unwrap_or(&None);
-        let headers = input.data.get(1).unwrap_or(&None);
+        let config = &self.config;
+        let body = input.data.first().unwrap_or(&None).as_deref();
+        let headers = input.data.get(1).unwrap_or(&None).as_deref();
 
-        let mut headers_vec = data::to_pwm_headers(*headers);
+        let mut headers_vec = data::to_pwm_headers(headers);
 
         if let Some(payload) = body {
             if let Some(content_type) = payload.content_type() {
@@ -43,7 +44,7 @@ impl Node for Response {
             }
         }
 
-        let body_slice = match data::to_pwm_body(*body) {
+        let body_slice = match data::to_pwm_body(body) {
             Ok(slice) => slice,
             Err(e) => return Fail(Some(Payload::Error(e))),
         };
@@ -53,7 +54,7 @@ impl Node for Response {
                 ctx.set_http_response_body(0, b.len(), &b);
             }
         } else {
-            ctx.send_http_response(self.config.status, headers_vec, body_slice.as_deref());
+            ctx.send_http_response(config.status, headers_vec, body_slice.as_deref());
         }
 
         Done(None)
