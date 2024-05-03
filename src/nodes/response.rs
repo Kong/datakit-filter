@@ -2,17 +2,29 @@ use proxy_wasm::traits::*;
 use serde_json::Value;
 use std::any::Any;
 use std::collections::BTreeMap;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering::Relaxed;
 
 use crate::config::get_config_value;
 use crate::data;
 use crate::data::{Input, Payload, Phase, State, State::*};
 use crate::nodes::{Node, NodeConfig, NodeFactory};
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct ResponseConfig {
-    // FIXME: the optional ones should be Option,
-    // but we're not really serializing this for now, just deserializing...
-    status: u32,
+    name: String,
+    status: Option<u32>,
+    warn_headers_sent: AtomicBool,
+}
+
+impl Clone for ResponseConfig {
+    fn clone(&self) -> ResponseConfig {
+        ResponseConfig {
+            name: self.name.clone(),
+            status: self.status,
+            warn_headers_sent: AtomicBool::new(self.warn_headers_sent.load(Relaxed)),
+        }
+    }
 }
 
 impl NodeConfig for ResponseConfig {
@@ -28,6 +40,27 @@ impl NodeConfig for ResponseConfig {
 #[derive(Clone)]
 pub struct Response {
     config: ResponseConfig,
+}
+
+fn warn_headers_sent(config: &ResponseConfig, set_headers: bool) {
+    let name = &config.name;
+    let set_status = config.status.is_some();
+
+    if set_status || set_headers {
+        let what = if set_headers && set_status {
+            "status or headers"
+        } else if set_status {
+            "status"
+        } else {
+            "headers"
+        };
+        log::warn!(
+            "response: node '{name}' cannot set {what} when processing response body, \
+                   headers already sent; set 'warn_headers_sent' to false \
+                   to silence this warning",
+        );
+    }
+    config.warn_headers_sent.store(false, Relaxed);
 }
 
 impl Node for Response {
@@ -50,11 +83,16 @@ impl Node for Response {
         };
 
         if input.phase == Phase::HttpResponseBody {
+            if config.warn_headers_sent.load(Relaxed) {
+                warn_headers_sent(config, headers.is_some());
+            }
+
             if let Some(b) = body_slice {
                 ctx.set_http_response_body(0, b.len(), &b);
             }
         } else {
-            ctx.send_http_response(config.status, headers_vec, body_slice.as_deref());
+            let status = config.status.unwrap_or(200);
+            ctx.send_http_response(status, headers_vec, body_slice.as_deref());
         }
 
         Done(None)
@@ -66,12 +104,16 @@ pub struct ResponseFactory {}
 impl NodeFactory for ResponseFactory {
     fn new_config(
         &self,
-        _name: &str,
+        name: &str,
         _inputs: &[String],
         bt: &BTreeMap<String, Value>,
     ) -> Result<Box<dyn NodeConfig>, String> {
         Ok(Box::new(ResponseConfig {
-            status: get_config_value(bt, "status").unwrap_or(200),
+            name: name.to_string(),
+            status: get_config_value(bt, "status"),
+            warn_headers_sent: AtomicBool::new(
+                get_config_value(bt, "warn_headers_sent").unwrap_or(true),
+            ),
         }))
     }
 
