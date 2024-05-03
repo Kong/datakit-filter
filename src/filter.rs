@@ -296,9 +296,11 @@ impl HttpContext for DataKitFilter {
             if let Some(payload) = self.data.first_input_for("response_body", None) {
                 let content_length = payload.len().map(|n| n.to_string());
                 self.set_http_response_header("Content-Length", content_length.as_deref());
-                self.set_http_response_header("Content-Encoding", None);
                 self.set_http_response_header("Content-Type", payload.content_type());
+            } else {
+                self.set_http_response_header("Content-Length", None);
             }
+            self.set_http_response_header("Content-Encoding", None);
         }
 
         if self.debug.is_some() {
