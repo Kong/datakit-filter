@@ -253,3 +253,23 @@ impl Data {
         None
     }
 }
+
+#[derive(Serialize)]
+struct ErrorMessage<'a> {
+    message: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    request_id: Option<String>,
+}
+
+pub fn to_json_error_body(message: &str, request_id: Option<Vec<u8>>) -> String {
+    serde_json::to_value(ErrorMessage {
+        message,
+        request_id: match request_id {
+            Some(vec) => std::str::from_utf8(&vec).map(|v| v.to_string()).ok(),
+            None => None,
+        },
+    })
+    .ok()
+    .map(|v| v.to_string())
+    .expect("JSON error object")
+}

@@ -74,6 +74,7 @@ impl RootContext for DataKitFilterRootContext {
             nodes,
             debug,
             data,
+            failed: false,
             do_request_headers,
             do_request_body,
             do_service_request_headers,
@@ -95,6 +96,7 @@ pub struct DataKitFilter {
     nodes: NodeMap,
     data: Data,
     debug: Option<Debug>,
+    failed: bool,
     do_request_headers: bool,
     do_request_body: bool,
     do_service_request_headers: bool,
@@ -145,6 +147,18 @@ impl DataKitFilter {
         }
     }
 
+    fn send_default_fail_response(&self) {
+        let body = data::to_json_error_body(
+            "An unexpected error ocurred",
+            self.get_property(vec!["ngx", "kong_request_id"]),
+        );
+        self.send_http_response(
+            500,
+            vec![("Content-Type", "application/json")],
+            Some(&body.into_bytes()),
+        );
+    }
+
     fn set_data(&mut self, name: &str, state: State) {
         if let Some(ref mut debug) = self.debug {
             debug.set_data(name, &state);
@@ -160,7 +174,12 @@ impl DataKitFilter {
     fn run_nodes(&mut self) -> Action {
         let mut ret = Action::Continue;
 
-        loop {
+        let mut debug_is_tracing = false;
+        if let Some(ref mut debug) = self.debug {
+            debug_is_tracing = debug.is_tracing();
+        }
+
+        while !self.failed {
             let mut any_ran = false;
             for name in self.config.get_node_names() {
                 let node: &dyn Node = self
@@ -177,9 +196,19 @@ impl DataKitFilter {
                         debug.run(name, &inputs, &state, RunMode::Run);
                     }
 
-                    if let State::Waiting(_) = state {
-                        ret = Action::Pause;
+                    match state {
+                        State::Done(_) => {}
+                        State::Waiting(_) => {
+                            ret = Action::Pause;
+                        }
+                        State::Fail(_) => {
+                            self.failed = true;
+                            if !debug_is_tracing {
+                                self.send_default_fail_response();
+                            }
+                        }
                     }
+
                     self.data.set(name, state);
                 }
             }
