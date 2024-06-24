@@ -26,15 +26,22 @@ jobs:
     - name: build
       run: cargo build --release
 
-    - run: |
+    - name: optimize
+      run: |
         if ! test -f target/wasm32-wasi/release/datakit.wasm; then
           echo "missing output binary"
           exit 1
         fi
 
-        mv -v \
+        wasm-opt -O4 \
           ./target/wasm32-wasi/release/datakit.wasm \
-          ./datakit.wasm
+          -o ./datakit.wasm
+
+    - run: |
+        if ! test -f ./datakit.wasm; then
+          echo "missing optimized binary"
+          exit 1
+        fi
 
         readonly BODY=./body.md
         touch "$BODY"

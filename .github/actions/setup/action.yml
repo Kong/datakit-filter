@@ -27,6 +27,12 @@ runs:
         components: cargo
         target: wasm32-wasi
 
+    - name: install wasm-opt optimizer
+      uses: actions-rs/cargo@v1
+      with:
+        command: install
+        args: wasm-opt
+
     - name: cargo build
       uses: actions-rs/cargo@v1
       with:
