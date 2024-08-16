@@ -224,7 +224,7 @@ impl DataKitFilter {
         ret
     }
 
-    fn set_service_request_data(&mut self) {
+    fn set_service_request_headers(&mut self) {
         if self.do_service_request_headers {
             if let Some(payload) = self.data.first_input_for("service_request_headers", None) {
                 let headers = data::to_pwm_headers(Some(payload));
@@ -232,7 +232,9 @@ impl DataKitFilter {
                 self.do_service_request_headers = false;
             }
         }
+    }
 
+    fn set_service_request_body(&mut self) {
         if self.do_service_request_body {
             if let Some(payload) = self.data.first_input_for("service_request_body", None) {
                 if let Ok(bytes) = payload.to_bytes() {
@@ -278,7 +280,8 @@ impl Context for DataKitFilter {
 
         self.run_nodes(HttpCallResponse);
 
-        self.set_service_request_data();
+        self.set_service_request_headers();
+        // self.set_service_request_body();
 
         self.resume_http_request();
     }
@@ -300,7 +303,8 @@ impl HttpContext for DataKitFilter {
         if self.get_http_request_header("Content-Length").is_none()
             && self.get_http_request_header("Transfer-Encoding").is_none()
         {
-            self.set_service_request_data();
+            self.set_service_request_headers();
+            // self.set_service_request_body();
         }
 
         action
@@ -317,7 +321,8 @@ impl HttpContext for DataKitFilter {
 
         let action = self.run_nodes(HttpRequestBody);
 
-        self.set_service_request_data();
+        self.set_service_request_headers();
+        self.set_service_request_body();
 
         action
     }
