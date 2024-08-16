@@ -36,7 +36,7 @@ impl Payload {
     pub fn from_bytes(bytes: Vec<u8>, content_type: Option<&str>) -> Option<Payload> {
         match content_type {
             Some(ct) => {
-                if ct == "application/json" {
+                if ct.contains("application/json") {
                     match serde_json::from_slice(&bytes) {
                         Ok(v) => Some(Payload::Json(v)),
                         Err(e) => Some(Payload::Error(e.to_string())),
