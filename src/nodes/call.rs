@@ -58,6 +58,7 @@ impl Node for Call {
         let mut headers_vec = data::to_pwm_headers(*headers);
         headers_vec.push((":method", self.config.method.as_str()));
         headers_vec.push((":path", call_url.path()));
+        headers_vec.push((":scheme", call_url.scheme()));
 
         let body_slice = match data::to_pwm_body(*body) {
             Ok(slice) => slice,
