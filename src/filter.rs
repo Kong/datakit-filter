@@ -223,6 +223,25 @@ impl DataKitFilter {
 
         ret
     }
+
+    fn set_service_request_data(&mut self) {
+        if self.do_service_request_headers {
+            if let Some(payload) = self.data.first_input_for("service_request_headers", None) {
+                let headers = data::to_pwm_headers(Some(payload));
+                self.set_http_request_headers(headers);
+                self.do_service_request_headers = false;
+            }
+        }
+
+        if self.do_service_request_body {
+            if let Some(payload) = self.data.first_input_for("service_request_body", None) {
+                if let Ok(bytes) = payload.to_bytes() {
+                    self.set_http_request_body(0, bytes.len(), &bytes);
+                }
+                self.do_service_request_body = false;
+            }
+        }
+    }
 }
 
 impl Context for DataKitFilter {
@@ -259,6 +278,8 @@ impl Context for DataKitFilter {
 
         self.run_nodes(HttpCallResponse);
 
+        self.set_service_request_data();
+
         self.resume_http_request();
     }
 }
@@ -274,7 +295,15 @@ impl HttpContext for DataKitFilter {
             self.set_headers_data(vec, "request_headers");
         }
 
-        self.run_nodes(HttpRequestHeaders)
+        let action = self.run_nodes(HttpRequestHeaders);
+
+        if self.get_http_request_header("Content-Length").is_none()
+            && self.get_http_request_header("Transfer-Encoding").is_none()
+        {
+            self.set_service_request_data();
+        }
+
+        action
     }
 
     fn on_http_request_body(&mut self, body_size: usize, eof: bool) -> Action {
@@ -288,20 +317,7 @@ impl HttpContext for DataKitFilter {
 
         let action = self.run_nodes(HttpRequestBody);
 
-        if self.do_service_request_headers {
-            if let Some(payload) = self.data.first_input_for("service_request_headers", None) {
-                let headers = data::to_pwm_headers(Some(payload));
-                self.set_http_request_headers(headers);
-            }
-        }
-
-        if self.do_service_request_body {
-            if let Some(payload) = self.data.first_input_for("service_request_body", None) {
-                if let Ok(bytes) = payload.to_bytes() {
-                    self.set_http_request_body(0, bytes.len(), &bytes);
-                }
-            }
-        }
+        self.set_service_request_data();
 
         action
     }
