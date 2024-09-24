@@ -27,14 +27,14 @@ message "Building the filter using cargo..."
 
 (
     cd ..
-    cargo build --target=wasm32-wasi --release || exit 1
+    cargo build --target=wasm32-wasip1 --release || exit 1
 ) || exit 1
 
 ### Copy filter to wasm/ #######################################################
 
 mkdir -p wasm
 
-cp -a ../target/wasm32-wasi/release/*.wasm wasm/
+cp -a ../target/wasm32-wasip1/release/*.wasm wasm/
 cp ../*.meta.json wasm/
 
 script_dir=$(dirname $(realpath $0))

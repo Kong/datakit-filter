@@ -28,13 +28,13 @@ jobs:
 
     - name: optimize
       run: |
-        if ! test -f target/wasm32-wasi/release/datakit.wasm; then
+        if ! test -f target/wasm32-wasip1/release/datakit.wasm; then
           echo "missing output binary"
           exit 1
         fi
 
         wasm-opt -O4 \
-          ./target/wasm32-wasi/release/datakit.wasm \
+          ./target/wasm32-wasip1/release/datakit.wasm \
           -o ./datakit.wasm
 
     - run: |
