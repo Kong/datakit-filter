@@ -25,7 +25,7 @@ runs:
         toolchain: stable
         override: true
         components: cargo
-        target: wasm32-wasi
+        target: wasm32-wasip1
 
     - name: install wasm-opt optimizer
       uses: actions-rs/cargo@v1
@@ -37,4 +37,4 @@ runs:
       uses: actions-rs/cargo@v1
       with:
         command: build
-        args: --target wasm32-wasi
+        args: --target wasm32-wasip1
